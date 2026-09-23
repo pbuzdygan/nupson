@@ -3,11 +3,12 @@
 NUPSON uses a single application container and persistent `/data` volume.
 
 ```text
-USB UPS -> NUT driver -> upsd :3493 -> remote upsmon clients
-                         |
-                         +-> NUPSON monitor -> recovery state machine
-                                                |
-                                                +-> ordered Wake-on-LAN
+USB UPS --------> usbhid-ups --+
+remote NUT -----> dummy-ups ---+-> local upsd :3493 -> remote upsmon clients
+SNMP UPS --------> snmp-ups ---+          |
+                                           +-> NUPSON monitor
+                                                 -> recovery state machine
+                                                 -> ordered Wake-on-LAN
 ```
 
 The Python process provides the web API, embedded static UI, SQLite storage,
@@ -62,11 +63,14 @@ time. The interval defaults to 15 minutes and is configurable in Automation.
 NUPSON does not mount the Docker socket and cannot shut down its host. The web
 administrator password is stored with scrypt. Session cookies are HTTP-only and
 same-site; mutating requests enforce same-origin checks. NUT configuration files
-containing passwords are mode 0600.
+containing passwords or SNMP credentials are mode 0600. UPS connection secrets
+are not stored in SQLite and are not returned by the API.
 
 USB access is limited by three layers: the host udev rule assigns only the UPS
 to a dedicated group, Compose passes that numeric `NUPSON_USB_GID`, and the
 device cgroup admits only USB character-device major 189. The entrypoint mirrors
 that one group inside the container and grants it to the unprivileged `nut`
-account. It does not discover or add unrelated host USB groups. Network access
-must additionally be limited with the host firewall.
+account. It does not discover or add unrelated host USB groups. These device
+permissions are unnecessary for remote NUT and SNMP profiles. Network access to
+NUT and SNMP must additionally be limited with the host firewall or management
+VLAN.

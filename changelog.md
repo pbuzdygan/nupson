@@ -7,6 +7,11 @@ user-visible or operational effects rather than implementation details.
 
 ### New features
 
+- Added editable UPS connection profiles for direct USB, remote NUT, and SNMP
+  (v1, v2c, and v3), backed by the corresponding NUT drivers.
+- Kept SNMP community and v3 authentication/privacy secrets out of SQLite and
+  API responses while preserving them across profile edits in the protected NUT
+  configuration file.
 - Added grouped UPS diagnostics and battery-health warnings based on explicit
   firmware signals and observed runtime.
 - Added a managed NUT server with USB discovery, manual configuration, and

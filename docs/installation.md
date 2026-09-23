@@ -3,12 +3,24 @@
 ## Requirements
 
 - a Linux host with Docker Engine and Docker Compose v2;
-- a USB UPS supported by Network UPS Tools;
-- permission to create a host group and udev rule;
+- a UPS reachable by USB, remote NUT, or SNMP and supported by Network UPS Tools;
+- for direct USB only: permission to create a host group and udev rule;
 - UDP broadcast connectivity to the Wake-on-LAN network;
 - a persistent local directory for `/data`.
 
-## 1. Identify the UPS
+## 1. Choose the connection profile
+
+NUPSON supports one active UPS through one of these profiles:
+
+- **USB:** a UPS physically connected to the NUPSON host;
+- **Remote NUT:** a UPS already exported by another NUT server;
+- **SNMP:** a UPS network management card using SNMP v1, v2c, or v3.
+
+The USB setup in sections 2-4 is required only for the direct USB profile. For
+remote NUT or SNMP, proceed to section 5 and ensure that the NUPSON host can
+reach TCP 3493 or UDP 161 respectively.
+
+## 2. Identify the UPS (USB only)
 
 Connect the UPS and run:
 
@@ -26,7 +38,7 @@ Bus 003 Device 007: ID 0764:0501 Cyber Power System, Inc. UPS
 Use the values reported for your device. Do not copy the example IDs unless
 they match.
 
-## 2. Create a dedicated USB group
+## 3. Create a dedicated USB group (USB only)
 
 Create a system group on the Docker host:
 
@@ -50,7 +62,7 @@ nupson-usb:x:995:
 The third field (`995` in this example) is the GID. It is host-specific; never
 assume that the example value is correct on another machine.
 
-## 3. Add the udev rule
+## 4. Add the udev rule (USB only)
 
 Create `/etc/udev/rules.d/99-nupson-ups.rules` as root:
 
@@ -88,7 +100,7 @@ crw-rw---- 1 root nupson-usb ... /dev/bus/usb/003/007
 If the group is still `root` or the mode is not `0660`, verify the IDs in the
 rule, reload udev, and reconnect the cable before starting NUPSON.
 
-## 4. Configure NUPSON
+## 5. Configure NUPSON
 
 Copy the environment template:
 
@@ -96,11 +108,14 @@ Copy the environment template:
 cp .env.example .env
 ```
 
-Set `NUPSON_USB_GID` to the actual numeric GID:
+For direct USB, set `NUPSON_USB_GID` to the actual numeric GID:
 
 ```dotenv
 NUPSON_USB_GID=995
 ```
+
+For remote NUT or SNMP, leave `NUPSON_USB_GID` empty. The application will not
+add a supplementary USB group.
 
 Set the persistent-data owner to the account which owns the checkout:
 
@@ -120,8 +135,9 @@ The container changes its unprivileged `nut` account to these IDs before
 opening the bind-mounted `data/` directory. This keeps host ownership readable
 and avoids mapping the image's internal IDs to unrelated host accounts.
 
-NUPSON passes that numeric group into the container, creates an equivalent
-group there, and makes the unprivileged `nut` account a member. The entrypoint
+When `NUPSON_USB_GID` is configured, NUPSON passes that numeric group into the
+container, creates an equivalent group there, and makes the unprivileged `nut`
+account a member. The entrypoint
 does not modify host device ownership and does not grant access to unrelated
 USB device groups.
 
@@ -137,7 +153,7 @@ NUPSON_DEMO=false
 No additional third-party appliance variables are required; NUPSON uses only
 the settings documented in `.env.example`.
 
-## 5. Start the service
+## 6. Start the service
 
 Build locally and start:
 
@@ -150,12 +166,24 @@ Alternatively, set `NUPSON_IMAGE` in `.env` to a published immutable image and
 run `docker compose pull && docker compose up -d` without `--build`.
 
 Open `http://HOST:8480` or the port selected in `.env`. The first visit requires
-creation of an administrator account. There is no default password.
+creation of an administrator account. There is no default password. Select the
+connection profile in **Settings -> UPS and NUT**:
+
+- USB accepts optional vendor/product IDs and a serial number;
+- remote NUT requires the server host, TCP port, and remote UPS name;
+- SNMP requires the management-card host, UDP port, MIB profile, and either a
+  community (v1/v2c) or SNMPv3 security parameters. Prefer SNMPv3 `authPriv`.
+
+SNMP secrets are written only to `data/nut/ups.conf`, which has mode `0600`.
+They are not stored in SQLite and are never returned by the API. Leaving an
+already configured secret field empty preserves its current value. Protect
+backups of `data/`, because NUT must be able to read the runtime credential in
+plain text. `NUPSON_ENC_KEY` is therefore not required or used.
 
 The service uses host networking so Wake-on-LAN broadcasts can reach the
 physical LAN. TCP 3493 is served directly by NUT.
 
-## USB security model
+## USB security model (direct USB only)
 
 The Compose file:
 
@@ -184,7 +212,8 @@ Check the supplementary groups visible to the application account:
 docker compose exec nupson id nut
 ```
 
-The output must include the numeric `NUPSON_USB_GID`. Check the mapped device:
+For a direct USB profile, the output must include the numeric `NUPSON_USB_GID`.
+Then check the mapped device:
 
 ```bash
 docker compose exec nupson sh -c 'ls -l /dev/bus/usb/*/*'
@@ -213,7 +242,7 @@ should also be UPS-protected.
 
 ## Backup and restore
 
-All persistent state lives under `./data`, including credentials. Stop the
+All persistent state lives under `./data`, including NUT and SNMP credentials. Stop the
 container before a filesystem backup:
 
 ```bash
@@ -253,8 +282,8 @@ docker run --rm -p 8480:8080 \
   ghcr.io/OWNER/REPOSITORY:latest
 ```
 
-The supplied hardware `compose.yaml` intentionally requires
-`NUPSON_USB_GID`. Demo mode must not protect real systems.
+The supplied `compose.yaml` accepts an empty `NUPSON_USB_GID` for network
+profiles and demo mode. Demo mode must not protect real systems.
 
 ## Incus USB passthrough
 

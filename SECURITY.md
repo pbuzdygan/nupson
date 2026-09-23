@@ -19,6 +19,8 @@ any suggested mitigation. Remove real credentials and identifying network data.
 
 NUPSON controls power-related automation and should be deployed only on a
 trusted management network. Restrict the dashboard and TCP 3493 with a host
-firewall, use the dedicated USB group described in the installation guide, keep
-`data/` and `.env` private, and test shutdown/recovery procedures during a
-maintenance window.
+firewall, use the dedicated USB group for a direct USB profile, and place remote
+NUT or SNMP management traffic on a trusted network. Prefer SNMPv3 with
+authentication and privacy where the UPS supports it. Keep `data/` and `.env`
+private, because the generated NUT files contain operational credentials, and
+test shutdown/recovery procedures during a maintenance window.

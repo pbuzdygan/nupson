@@ -10,7 +10,7 @@ Run these checks before opening a pull request:
 ruff check nupson tests
 ruff format --check nupson tests
 python3 -m unittest discover -s tests -v
-NUPSON_USB_GID=995 docker compose config -q
+docker compose config -q
 ```
 
 Functional changes should include tests and an entry under `Unreleased` in

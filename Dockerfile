@@ -9,6 +9,7 @@ RUN apt-get update \
         ca-certificates \
         curl \
         libltdl-dev \
+        libsnmp-dev \
         libssl-dev \
         libusb-1.0-0-dev \
         pkgconf \
@@ -29,8 +30,9 @@ RUN curl -fsSL "https://networkupstools.org/source/2.8/nut-${NUT_VERSION}.tar.gz
         --with-drvpath=/usr/libexec/nut \
         --with-user=nut \
         --with-group=nut \
-        --with-drivers=usbhid-ups,dummy-ups \
+        --with-drivers=usbhid-ups,dummy-ups,snmp-ups \
         --with-usb=yes \
+        --with-snmp=yes \
         --with-nut-scanner=yes \
         --with-openssl \
         --without-cgi \
@@ -51,6 +53,7 @@ RUN apt-get update \
         gosu \
         iputils-ping \
         libltdl7 \
+        libsnmp40t64 \
         libssl3t64 \
         libusb-1.0-0 \
         passwd \
@@ -72,6 +75,9 @@ RUN ldconfig \
     && find /app -type f -exec chmod 0644 {} + \
     && chmod 0755 /usr/local/bin/docker-entrypoint.sh \
     && python -m compileall -q /app/nupson \
+    && test -x /usr/libexec/nut/usbhid-ups \
+    && test -x /usr/libexec/nut/dummy-ups \
+    && test -x /usr/libexec/nut/snmp-ups \
     && test "$(upsd -V 2>&1 | awk 'NR == 1 {print $5}')" = "2.8.5"
 
 ENV PYTHONUNBUFFERED=1 \

@@ -19,7 +19,9 @@ from .auth import AuthManager
 from .client_config import render_client_files, validate_client_profile, zip_client_files
 from .config import (
     AppConfig,
+    public_ups_config,
     read_nut_client_password,
+    read_ups_secrets,
     remove_nut_files,
     validate_nut_username,
     validate_ups_config,
@@ -225,8 +227,8 @@ class Handler(BaseHTTPRequestHandler):
                     )
                 if len(client_password) < 6:
                     raise ValueError("NUT client password must contain at least 6 characters")
-                ups = validate_ups_config(data)
-                previous_ups = self.app.database.get_setting("ups_config")
+                ups = validate_ups_config(data, read_ups_secrets(self.app.config.nut_dir))
+                public_ups = public_ups_config(ups)
 
                 def write_configuration() -> dict[str, str]:
                     return write_nut_files(
@@ -236,11 +238,8 @@ class Handler(BaseHTTPRequestHandler):
                         client_username=client_username,
                     )
 
-                if previous_ups == ups:
-                    self.app.service.supervisor.reconfigure_clients(write_configuration)
-                else:
-                    self.app.service.supervisor.reconfigure(write_configuration)
-                self.app.database.set_setting("ups_config", ups)
+                self.app.service.supervisor.reconfigure(write_configuration)
+                self.app.database.set_setting("ups_config", public_ups)
                 self.app.database.set_setting("ups_name", ups["name"])
                 self.app.database.set_setting("nut_client_username", client_username)
                 self.app.database.invalidate_client_configs()
@@ -260,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
                         "ready": ready,
                         "initializing": readiness_error == INCOMPLETE_TELEMETRY_ERROR,
                         "readiness_error": readiness_error,
-                        "ups": ups,
+                        "ups": public_ups,
                         "client_username": client_username,
                     }
                 )

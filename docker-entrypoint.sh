@@ -47,6 +47,11 @@ chmod 0750 /data /data/nut /run/nut
 if [ -f /data/nupson.db ]; then
     chmod 0600 /data/nupson.db
 fi
+for config_file in /data/nut/ups.conf /data/nut/upsd.users /data/nut/upsmon.conf; do
+    if [ -f "$config_file" ]; then
+        chmod 0600 "$config_file"
+    fi
+done
 
 # The host udev rule grants the UPS device to one dedicated group. Mirror that
 # numeric GID in the container and grant it only to the unprivileged NUT user.

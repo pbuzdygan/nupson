@@ -231,7 +231,7 @@ class NutSupervisor:
             return result
 
     def reconfigure_clients(self, write_configuration: Callable[[], T]) -> T:
-        """Reload NUT accounts without restarting the USB driver."""
+        """Reload NUT accounts without restarting the UPS driver."""
         with self._process_lock:
             self.startup_error = None
             self._stop_servers()

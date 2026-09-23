@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
-from .config import AppConfig
+from .config import AppConfig, public_ups_config
 from .db import Database
 from .nut import NutClient, NutError, NutSupervisor
 from .state_machine import PowerState, RecoveryMachine, Transition
@@ -39,7 +39,7 @@ NUT_RESTART_SECONDS = 10
 TELEMETRY_INTERVAL_SECONDS = 60
 INITIAL_TELEMETRY_TIMEOUT_SECONDS = 5
 INCOMPLETE_TELEMETRY_ERROR = (
-    "Sterownik UPS udostępnił niepełną telemetrię. Trwa ponowna inicjalizacja USB."
+    "Sterownik UPS udostępnił niepełną telemetrię. Trwa ponowna inicjalizacja połączenia."
 )
 OPERATIONAL_TELEMETRY_FIELDS = {
     "battery.charge",
@@ -175,7 +175,7 @@ class NupsonService:
         persisted = self.database.settings()
         result = {key: persisted.get(key, default) for key, default in DEFAULTS.items()}
         result["webhook_secret_configured"] = bool(persisted.get("webhook_secret"))
-        result["ups_config"] = persisted.get("ups_config")
+        result["ups_config"] = public_ups_config(persisted.get("ups_config"))
         return result
 
     def update_settings(self, values: dict[str, Any]) -> dict[str, Any]:

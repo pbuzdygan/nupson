@@ -3,7 +3,9 @@ import unittest
 from pathlib import Path
 
 from nupson.config import (
+    public_ups_config,
     read_nut_client_password,
+    read_ups_secrets,
     remove_nut_files,
     render_nut_config,
     validate_nut_username,
@@ -21,11 +23,89 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("driver = usbhid-ups", rendered)
         self.assertIn("serial = ABC123", rendered)
 
+    def test_renders_remote_nut_repeater_profile(self):
+        config = validate_ups_config(
+            {
+                "connection_type": "remote_nut",
+                "name": "rack-ups",
+                "remote_host": "192.168.20.10",
+                "remote_port": "3493",
+                "remote_ups_name": "main-ups",
+            }
+        )
+        rendered = render_nut_config(config)
+        self.assertIn("driver = dummy-ups", rendered)
+        self.assertIn("port = main-ups@192.168.20.10:3493", rendered)
+        self.assertIn("repeater_disable_strict_start", rendered)
+
+    def test_snmp_secrets_are_rendered_but_not_exposed(self):
+        config = validate_ups_config(
+            {
+                "connection_type": "snmp",
+                "name": "rack-ups",
+                "snmp_host": "192.168.20.20",
+                "snmp_version": "v3",
+                "sec_name": "nupson",
+                "sec_level": "authPriv",
+                "auth_protocol": "SHA256",
+                "auth_password": "authentication-secret",
+                "priv_protocol": "AES",
+                "priv_password": "privacy-secret",
+            }
+        )
+        public = public_ups_config(config)
+        self.assertNotIn("auth_password", public)
+        self.assertNotIn("priv_password", public)
+        self.assertTrue(public["auth_password_configured"])
+        self.assertTrue(public_ups_config(public)["auth_password_configured"])
+        rendered = render_nut_config(config)
+        self.assertIn("driver = snmp-ups", rendered)
+        self.assertIn("secLevel = authPriv", rendered)
+        self.assertIn("authPassword = authentication-secret", rendered)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            write_nut_files(path, config, "secondary")
+            self.assertEqual(
+                read_ups_secrets(path),
+                {
+                    "auth_password": "authentication-secret",
+                    "priv_password": "privacy-secret",
+                },
+            )
+            self.assertEqual((path / "ups.conf").stat().st_mode & 0o777, 0o600)
+
+    def test_snmp_update_preserves_existing_secret(self):
+        config = validate_ups_config(
+            {
+                "connection_type": "snmp",
+                "name": "rack-ups",
+                "snmp_host": "ups.example.test",
+                "snmp_version": "v2c",
+            },
+            {"community": "existing-community"},
+        )
+        self.assertEqual(config["community"], "existing-community")
+
+    def test_rejects_short_snmpv3_password(self):
+        with self.assertRaisesRegex(ValueError, "at least 8"):
+            validate_ups_config(
+                {
+                    "connection_type": "snmp",
+                    "name": "rack-ups",
+                    "snmp_host": "ups.example.test",
+                    "snmp_version": "v3",
+                    "sec_name": "nupson",
+                    "sec_level": "authNoPriv",
+                    "auth_password": "short",
+                }
+            )
+
     def test_rejects_configuration_injection(self):
         with self.assertRaises(ValueError):
             validate_ups_config({"name": "ups\n[evil]", "driver": "usbhid-ups", "port": "auto"})
         with self.assertRaises(ValueError):
-            validate_ups_config({"name": "ups", "driver": "bad driver", "port": "auto"})
+            validate_ups_config({"name": "ups", "connection_type": "modbus"})
         with self.assertRaises(ValueError):
             validate_nut_username("client]\n[admin")
 

@@ -16,7 +16,7 @@ criteria. Every functional change must also be recorded under `Unreleased` in
 | Milestone | Scope | Status | Progress |
 | --- | --- | --- | --- |
 | 0 | Project foundation | Complete | 8/8 |
-| 1 | NUT core and UPS discovery | Complete | 9/9 |
+| 1 | NUT core and UPS connection profiles | Complete | 12/12 |
 | 2 | Network NUT server | Complete | 9/9 |
 | 3 | Backend, persistence, and API | Complete | 9/9 |
 | 4 | Outage and recovery state machine | Complete | 13/13 |
@@ -28,7 +28,8 @@ criteria. Every functional change must also be recorded under `Unreleased` in
 
 NUPSON has three primary responsibilities:
 
-1. detect and operate a USB-connected UPS;
+1. operate one UPS connected directly over USB, through remote NUT, or over
+   SNMP;
 2. expose that UPS as a NUT server for protected `upsmon` clients;
 3. after an outage, confirm continuous utility power, wait for the configured
    battery reserve, and wake selected hosts in a controlled order.
@@ -53,11 +54,11 @@ An optional host helper remains outside the MVP scope.
 Acceptance criteria: the project builds from a clean checkout, tests run both
 locally and in CI, and the container exposes a health endpoint.
 
-## Milestone 1 — NUT core and UPS discovery
+## Milestone 1 — NUT core and UPS connection profiles
 
 **Status: Complete**
 
-- [x] Build Network UPS Tools and the required USB drivers into the image.
+- [x] Build Network UPS Tools and the required USB, repeater, and SNMP drivers into the image.
 - [x] Expose the USB bus without `privileged: true`.
 - [x] Discover devices with `nut-scanner -U`.
 - [x] Show manufacturer, model, VID/PID, serial number, and suggested driver.
@@ -66,10 +67,13 @@ locally and in CI, and the container exposes a health endpoint.
 - [x] Start and supervise the selected driver.
 - [x] Verify readiness using `ups.status`.
 - [x] Handle USB reconnects and changed bus/device numbers.
+- [x] Connect to an existing remote NUT server through the NUT repeater driver.
+- [x] Connect to a network management card through SNMP v1, v2c, or v3.
+- [x] Keep SNMP secrets out of SQLite and API responses.
 
-Acceptance criteria: a supported UPS can be configured from the UI, persistent
-configuration survives restart, and driver errors remain diagnosable without
-restarting the whole application.
+Acceptance criteria: a supported UPS can be configured from the UI using any of
+the three supported profiles, persistent configuration survives restart, and
+driver errors remain diagnosable without restarting the whole application.
 
 ## Milestone 2 — Network NUT server
 
@@ -190,9 +194,10 @@ reason for delayed Wake-on-LAN is always visible.
 - [ ] Complete a release-candidate smoke test with a physical UPS and phone.
 - [ ] Publish immutable version `0.1.0` and verify the `latest` manifest.
 
-Acceptance criteria: a clean host needs only Docker, Compose, USB permissions,
-and the documented GID; updates retain persistent state; the hardware smoke test
-confirms discovery, client access, outage handling, recovery, and Wake-on-LAN.
+Acceptance criteria: a clean host needs Docker and Compose plus USB permissions
+and the documented GID only when using direct USB; updates retain persistent
+state; the hardware smoke test confirms discovery, client access, outage
+handling, recovery, and Wake-on-LAN.
 
 ## Post-MVP candidates
 
@@ -216,3 +221,4 @@ confirms discovery, client access, outage handling, recovery, and Wake-on-LAN.
 | 2026-09-20 | Bind-mount `/dev/bus/usb`. | A bind mount follows USB re-enumeration while the cgroup rule restricts the device class. |
 | 2026-09-22 | Require a dedicated udev group and explicit numeric GID. | Grants the container access to the UPS without broad USB-group discovery or privileged mode. |
 | 2026-09-22 | Publish images only from GitHub Releases. | Keeps CI verification separate from intentional distribution and prevents stable/dev tag collisions. |
+| 2026-09-24 | Support USB, remote NUT, and SNMP connection profiles. | These cover the common local and network UPS integrations while preserving one normalized NUT data path. |

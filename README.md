@@ -2,14 +2,14 @@
 
 ![NUPSON](branding/nupson_banner.png)
 
-NUPSON is a self-hosted Network UPS Tools appliance for a USB-connected UPS. It
-provides a protected NUT server, a responsive monitoring dashboard, controlled
-client shutdown configuration, and ordered Wake-on-LAN recovery after power
-returns.
+NUPSON is a self-hosted Network UPS Tools appliance for one UPS connected
+directly over USB, through a remote NUT server, or over SNMP. It provides a
+protected local NUT server, a responsive monitoring dashboard, controlled client
+shutdown configuration, and ordered Wake-on-LAN recovery after power returns.
 
 ## What it does
 
-- detects and configures a supported USB UPS through NUT;
+- configures a UPS using direct USB, remote NUT, or SNMP;
 - exposes UPS data to trusted `upsmon` clients on TCP 3493;
 - records power events and historical telemetry in SQLite;
 - generates ready-to-install NUT client configuration bundles;
@@ -25,13 +25,14 @@ that utility power has not disappeared again for the configured interval.
 ## Requirements
 
 - Linux with Docker Engine and Docker Compose v2;
-- a USB UPS supported by [Network UPS Tools](https://networkupstools.org/);
+- a UPS reachable by USB, remote NUT, or SNMP and supported by
+  [Network UPS Tools](https://networkupstools.org/);
 - a trusted LAN that can carry Wake-on-LAN broadcasts;
-- a dedicated host group and udev rule for the UPS device.
+- for direct USB only: a dedicated host group and udev rule for the UPS device.
 
 ## Quick start
 
-Identify the UPS first:
+For a direct USB connection, identify the UPS first:
 
 ```bash
 lsusb
@@ -64,7 +65,8 @@ Then prepare NUPSON:
 cp .env.example .env
 ```
 
-Set `NUPSON_USB_GID` in `.env` to the GID printed by `getent`. Also set
+For USB, set `NUPSON_USB_GID` in `.env` to the GID printed by `getent`. Leave it
+empty for remote NUT or SNMP. Set
 `NUPSON_UID` and `NUPSON_GID` to the values printed by `id -u` and `id -g` so
 the bind-mounted `data/` directory remains owned by your host account. Then
 start the service:
@@ -74,8 +76,10 @@ docker compose up -d --build
 docker compose logs -f nupson
 ```
 
-Open `http://HOST:8480`, create the administrator account, detect the UPS, and
-add Wake-on-LAN hosts. There is no default password.
+Open `http://HOST:8480`, create the administrator account, choose a connection
+profile, and add Wake-on-LAN hosts. There is no default password. SNMP secrets
+are kept only in the generated mode-`0600` NUT configuration and are never
+returned by the API or stored in SQLite.
 
 The complete setup, permission verification, firewall, upgrade, backup, and
 troubleshooting instructions are in [Installation and operations](docs/installation.md).

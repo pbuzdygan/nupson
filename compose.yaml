@@ -17,7 +17,7 @@ services:
       NUPSON_DEMO: ${NUPSON_DEMO:-false}
       NUPSON_UID: ${NUPSON_UID:-1000}
       NUPSON_GID: ${NUPSON_GID:-1000}
-      NUPSON_USB_GID: ${NUPSON_USB_GID:?Set NUPSON_USB_GID to the host nupson-usb group GID}
+      NUPSON_USB_GID: ${NUPSON_USB_GID:-}
     volumes:
       - ./data:/data
       - /run/udev:/run/udev:ro
@@ -29,8 +29,6 @@ services:
       - /dev/bus/usb:/dev/bus/usb
     device_cgroup_rules:
       - "c 189:* rwm"
-    group_add:
-      - "${NUPSON_USB_GID:?Set NUPSON_USB_GID to the host nupson-usb group GID}"
     healthcheck:
       test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['NUPSON_HTTP_PORT'] + '/healthz', timeout=2)"]
       interval: 30s
