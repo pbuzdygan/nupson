@@ -102,6 +102,24 @@ Set `NUPSON_USB_GID` to the actual numeric GID:
 NUPSON_USB_GID=995
 ```
 
+Set the persistent-data owner to the account which owns the checkout:
+
+```bash
+id -u
+id -g
+```
+
+Copy those numeric values into `.env` (the common first-user values are shown):
+
+```dotenv
+NUPSON_UID=1000
+NUPSON_GID=1000
+```
+
+The container changes its unprivileged `nut` account to these IDs before
+opening the bind-mounted `data/` directory. This keeps host ownership readable
+and avoids mapping the image's internal IDs to unrelated host accounts.
+
 NUPSON passes that numeric group into the container, creates an equivalent
 group there, and makes the unprivileged `nut` account a member. The entrypoint
 does not modify host device ownership and does not grant access to unrelated

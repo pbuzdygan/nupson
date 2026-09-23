@@ -64,8 +64,10 @@ Then prepare NUPSON:
 cp .env.example .env
 ```
 
-Set `NUPSON_USB_GID` in `.env` to the GID printed by `getent`, then start the
-service:
+Set `NUPSON_USB_GID` in `.env` to the GID printed by `getent`. Also set
+`NUPSON_UID` and `NUPSON_GID` to the values printed by `id -u` and `id -g` so
+the bind-mounted `data/` directory remains owned by your host account. Then
+start the service:
 
 ```bash
 docker compose up -d --build
@@ -132,8 +134,10 @@ reserved for published releases.
 
 The `data/` directory contains the SQLite database, password hashes, sessions,
 NUT credentials, and generated configuration. It is excluded from Git and must
-never be published. `.env` is also excluded; only `.env.example` belongs in the
-repository.
+never be published. The container aligns its unprivileged `nut` account with
+`NUPSON_UID:NUPSON_GID`; set these to the numeric owner of `data/`. Database
+files are restricted to mode `0600`. `.env` is also excluded; only
+`.env.example` belongs in the repository.
 
 The default Compose configuration uses host networking for Wake-on-LAN. Limit
 the dashboard port and TCP 3493 to trusted networks with the host firewall.

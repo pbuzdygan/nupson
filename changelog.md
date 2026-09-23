@@ -51,6 +51,10 @@ user-visible or operational effects rather than implementation details.
 
 ### Bug fixes
 
+- Aligned the container's unprivileged `nut` account with configurable host
+  `NUPSON_UID` and `NUPSON_GID` values so bind-mounted persistent data no
+  longer appears to belong to unrelated host services, and restricted the
+  SQLite database to owner-only access.
 - Persisted administrator sessions and made the dashboard recover cleanly after
   temporary backend disconnection.
 - Changed USB passthrough from a fixed device mapping to a bind mount so device

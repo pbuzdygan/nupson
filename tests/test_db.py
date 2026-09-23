@@ -17,6 +17,11 @@ class DatabaseTests(unittest.TestCase):
         self.db.set_setting("minimum_charge", 50)
         self.assertEqual(self.db.get_setting("minimum_charge"), 50)
 
+    def test_database_permissions_are_restricted(self):
+        self.db.path.chmod(0o666)
+        Database(self.db.path)
+        self.assertEqual(self.db.path.stat().st_mode & 0o777, 0o600)
+
     def test_wake_queue_uses_outage_snapshot_policy(self):
         first = self.db.save_host(
             {

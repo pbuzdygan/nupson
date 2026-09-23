@@ -6,7 +6,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +22,14 @@ class Database:
         self.path = path
         self._lock = threading.RLock()
         self.migrate()
+        self._secure_files()
+
+    def _secure_files(self) -> None:
+        """Keep the database and any live SQLite sidecars owner-only."""
+        for suffix in ("", "-wal", "-shm"):
+            candidate = Path(f"{self.path}{suffix}")
+            with suppress(FileNotFoundError):
+                candidate.chmod(0o600)
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
@@ -29,11 +37,13 @@ class Database:
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA journal_mode = WAL")
+        self._secure_files()
         try:
             yield connection
             connection.commit()
         finally:
             connection.close()
+            self._secure_files()
 
     def migrate(self) -> None:
         with self._lock, self.connect() as db:
