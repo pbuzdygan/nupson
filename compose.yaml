@@ -1,0 +1,39 @@
+services:
+  nupson:
+    build: .
+    image: ${NUPSON_IMAGE:-nupson:local}
+    container_name: nupson
+    restart: unless-stopped
+    # WoL broadcasts must leave through the physical LAN interface. Docker's
+    # bridge keeps directed broadcasts on its veth network.
+    network_mode: host
+    environment:
+      NUPSON_HTTP_HOST: ${NUPSON_HTTP_HOST:-0.0.0.0}
+      NUPSON_HTTP_PORT: ${NUPSON_HTTP_PORT:-8480}
+      NUPSON_DATA_DIR: /data
+      NUPSON_NUT_HOST: 127.0.0.1
+      NUPSON_NUT_PORT: 3493
+      NUPSON_MANAGE_NUT: ${NUPSON_MANAGE_NUT:-true}
+      NUPSON_DEMO: ${NUPSON_DEMO:-false}
+      NUPSON_USB_GID: ${NUPSON_USB_GID:?Set NUPSON_USB_GID to the host nupson-usb group GID}
+    volumes:
+      - ./data:/data
+      - /run/udev:/run/udev:ro
+      # A directory passed through `devices` is resolved when the container is
+      # created.  USB reconnects can change e.g. 003/010 to 003/011 and leave
+      # the container with a stale device node.  A bind mount follows changes
+      # in devtmpfs while the cgroup rule below still limits device access to
+      # the USB character-device major.
+      - /dev/bus/usb:/dev/bus/usb
+    device_cgroup_rules:
+      - "c 189:* rwm"
+    group_add:
+      - "${NUPSON_USB_GID:?Set NUPSON_USB_GID to the host nupson-usb group GID}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['NUPSON_HTTP_PORT'] + '/healthz', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true

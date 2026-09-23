@@ -1,0 +1,15 @@
+ups.status: OL
+ups.model: NUPSON Integration Test
+battery.charge: 97
+battery.runtime: 3600
+ups.load: 25
+input.voltage: 230.0
+output.voltage: 230.0
+TIMER 5
+ups.status: OB DISCHRG
+battery.charge: 90
+TIMER 3
+ups.status: OL CHRG
+battery.charge: 91
+TIMER 30
+

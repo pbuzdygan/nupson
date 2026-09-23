@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101411">
+  <meta name="application-name" content="NUPSON">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NUPSON">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="Panel monitorowania UPS i bezpiecznej automatyki zasilania.">
+  <title>NUPSON</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="/assets/apple-touch-icon-120.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/assets/apple-touch-icon-152.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="/assets/apple-touch-icon-167.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="stylesheet" href="/styles.css?v=5">
+  <link rel="stylesheet" href="/dashboard.css?v=12">
+</head>
+<body>
+  <div id="auth" class="auth-shell hidden">
+    <section class="auth-card">
+      <img class="auth-banner" src="/assets/login-banner.png" width="960" height="320" alt="NUPSON UPS Orchestrator" fetchpriority="high">
+      <h1 id="auth-title">Witaj w NUPSON</h1>
+      <p id="auth-copy" class="muted">Utwórz konto administratora, aby rozpocząć konfigurację.</p>
+      <form id="auth-form">
+        <label>Nazwa użytkownika<input name="username" autocomplete="username" required></label>
+        <label>Hasło<input name="password" type="password" minlength="10" autocomplete="new-password" required></label>
+        <button class="primary" type="submit">Kontynuuj</button>
+        <p id="auth-error" class="error"></p>
+      </form>
+    </section>
+  </div>
+
+  <div id="app" class="app-shell hidden">
+    <aside>
+      <a class="brand" href="#dashboard"><img class="brand-logo" src="/assets/logo-mark.png" width="38" height="38" alt=""><strong>NUPSON</strong></a>
+      <nav>
+        <a href="#dashboard" data-view="dashboard" class="active"><i class="ti ti-dashboard"></i>Przegląd</a>
+        <a href="#statistics" data-view="statistics"><i class="ti ti-chart"></i>Statystyki</a>
+        <a href="#hosts" data-view="hosts"><i class="ti ti-users"></i>Hosty</a>
+        <a href="#clients" data-view="clients"><i class="ti ti-plug"></i>Klienci NUT</a>
+        <a href="#events" data-view="events"><i class="ti ti-history"></i>Zdarzenia</a>
+        <a href="#settings" data-view="settings"><i class="ti ti-settings"></i>Ustawienia</a>
+      </nav>
+      <div class="aside-bottom">
+        <span id="connection-dot" class="dot"></span><span id="connection-label">Łączenie…</span>
+        <button id="logout" class="text-button">Wyloguj</button>
+      </div>
+    </aside>
+
+    <main>
+      <div id="backend-banner" class="backend-banner hidden" role="status" aria-live="polite">
+        <strong>Połączenie z NUPSON zostało przerwane</strong>
+        <span>Wyświetlane dane mogą być nieaktualne. Trwa automatyczne ponowne łączenie…</span>
+      </div>
+      <header>
+        <div><p class="eyebrow">NETWORK UPS ORCHESTRATOR</p><h1 id="page-title">Przegląd</h1></div>
+        <div class="header-tools"><div id="clock" class="clock"></div><button id="theme-toggle" class="secondary theme-toggle" type="button"><i id="theme-icon" class="ti ti-sun"></i><span id="theme-label" class="sr-only">Włącz jasny motyw</span></button></div>
+      </header>
+
+      <section id="view-dashboard" class="view active">
+        <div id="power-hero" class="power-hero unknown" role="status" aria-live="polite" aria-atomic="true">
+          <div class="power-icon" aria-hidden="true"><i class="ti ti-bolt"></i></div>
+          <div class="power-copy">
+            <div class="power-kicker"><span>Stan zasilania</span><strong id="power-phase">Łączenie</strong></div>
+            <h2 id="power-label">Oczekiwanie na dane</h2>
+            <p id="power-detail">NUPSON łączy się z serwerem NUT.</p>
+          </div>
+          <div id="recovery-box" class="power-action hidden">
+            <span id="power-action-label">Potwierdzanie zasilania</span>
+            <strong id="recovery-time">—</strong>
+          </div>
+          <i id="power-progress" class="power-progress hidden" aria-hidden="true"></i>
+        </div>
+        <div class="metric-grid">
+          <article><span>Bateria</span><strong id="battery">—</strong><div class="bar"><i id="battery-bar"></i></div></article>
+          <article><span>Czas pracy</span><strong id="runtime">—</strong><small id="runtime-note">wartość szacowana przez UPS</small></article>
+          <article><span>Obciążenie</span><strong id="load">—</strong><div class="bar"><i id="load-bar"></i></div></article>
+          <article><span>Pobór mocy</span><strong id="power-usage">—</strong><small id="power-usage-note">wartość raportowana przez UPS</small></article>
+          <article><span>Napięcie wejściowe</span><strong id="voltage">—</strong><small id="output-voltage">wyjście —</small></article>
+        </div>
+        <div class="two-column">
+          <article class="panel"><div class="panel-head"><h3>Hosty do uruchomienia</h3><a href="#hosts">Zarządzaj</a></div><div id="dashboard-hosts" class="item-list empty">Brak hostów WoL.</div></article>
+          <article class="panel"><div class="panel-head"><h3>Ostatnie zdarzenia</h3><a href="#events">Zobacz wszystkie</a></div><div id="dashboard-events" class="timeline empty">Brak zdarzeń.</div></article>
+        </div>
+      </section>
+
+      <section id="view-statistics" class="view">
+        <div class="statistics-tabs" role="tablist" aria-label="Sekcje statystyk"><button class="statistics-tab active" type="button">Parametry i koszty</button></div>
+        <section class="history-section panel">
+          <div class="history-head">
+            <div><p class="eyebrow">HISTORIA UPS</p><h2>Parametry i koszt energii</h2></div>
+            <div class="history-controls">
+              <select id="history-range" aria-label="Zakres historii"><option value="3600" selected>Na żywo · ostatnia godzina</option><option value="86400">24 godziny</option><option value="604800">7 dni</option><option value="2592000">30 dni</option><option value="7776000">90 dni</option><option value="15552000">6 miesięcy</option><option value="custom">Własny zakres</option></select>
+              <span id="history-live" class="live-badge"><i></i>automatyczne</span>
+              <button id="refresh-history" class="secondary" type="button"><i class="ti ti-refresh"></i><span>Odśwież</span></button>
+            </div>
+          </div>
+          <form id="history-custom" class="history-custom hidden"><label>Od<input id="history-from" type="datetime-local" required></label><label>Do<input id="history-to" type="datetime-local" required></label><button class="secondary" type="submit">Pokaż</button></form>
+          <div class="history-summary"><div><span>Zużycie</span><strong id="history-energy">—</strong></div><div><span>Koszt</span><strong id="history-cost">—</strong></div><div><span>Średnia moc</span><strong id="history-average-power">—</strong></div><div><span>Maksymalna moc</span><strong id="history-peak-power">—</strong></div></div>
+          <div class="chart-grid">
+            <article class="chart-card"><h3>Bateria i obciążenie</h3><div id="chart-percent" class="mini-chart"></div></article>
+            <article class="chart-card"><h3>Napięcie</h3><div id="chart-voltage" class="mini-chart"></div></article>
+            <article class="chart-card"><h3>Pobór mocy</h3><div id="chart-power" class="mini-chart"></div></article>
+            <article class="chart-card"><h3>Szacowany czas pracy</h3><div id="chart-runtime" class="mini-chart"></div></article>
+          </div>
+          <p id="history-note" class="muted history-note">Próbki są zapisywane co minutę.</p>
+        </section>
+      </section>
+
+      <section id="view-hosts" class="view">
+        <div class="section-intro"><div><p class="eyebrow">WAKE-ON-LAN</p><h2>Hosty i kolejność startu</h2></div><button id="add-host" class="primary">Dodaj host</button></div>
+        <div id="hosts-list" class="cards-list"></div>
+        <form id="host-form" class="panel form-grid hidden">
+          <h3 id="host-form-title">Nowy host</h3><input type="hidden" name="id">
+          <label>Nazwa<input name="name" required></label>
+          <label>MAC<input name="mac" placeholder="AA:BB:CC:DD:EE:FF" required></label>
+          <label><span class="field-title">IP / hostname do ping<button class="help" type="button" aria-label="Wyjaśnienie adresu hosta" data-tooltip="NUPSON wysyła pojedynczy ping ICMP, aby sprawdzić host przed WoL i potwierdzić jego uruchomienie. Nie skanuje portów TCP."><i class="ti ti-info"></i></button></span><input name="address" placeholder="192.168.1.20"></label>
+          <label>Broadcast<input name="broadcast" value="255.255.255.255" required></label>
+          <label>Polityka<select name="policy"><option value="was_online">Jeśli działał przed awarią</option><option value="always">Zawsze po awarii</option><option value="manual">Tylko ręcznie</option><option value="disabled">Wyłączony</option></select></label>
+          <label>Fala<input name="wave" type="number" min="1" value="1"></label>
+          <label>Opóźnienie hosta (s)<input name="delay_seconds" type="number" min="0" value="0"></label>
+          <div class="wide form-actions"><button class="primary" type="submit">Zapisz host</button><button id="cancel-host" class="secondary" type="button">Anuluj</button><span id="host-message"></span></div>
+        </form>
+      </section>
+
+      <section id="view-clients" class="view">
+        <div class="section-intro"><div><p class="eyebrow">KLIENCI NUT</p><h2>Profile i konfigurator</h2><p class="muted">Zapisz oczekiwany adres klienta, wygeneruj pliki i obserwuj jego połączenie.</p></div><button id="add-client-profile" class="primary" type="button">Dodaj klienta</button></div>
+        <div class="client-explanation panel"><strong>Połączenie potwierdza aktywną sesję upsmon.</strong><span>Bez agenta NUPSON nie może potwierdzić dokładnej wersji plików znajdujących się na kliencie.</span></div>
+        <div id="client-profiles" class="cards-list"></div>
+        <article id="unrecognized-clients-panel" class="panel hidden"><h3>Nierozpoznane połączenia</h3><p class="muted">Te adresy są połączone z NUT, ale nie mają przypisanego profilu.</p><div id="unrecognized-clients" class="item-list"></div></article>
+        <form id="client-profile-form" class="panel form-grid hidden">
+          <h3 id="client-profile-title">Nowy klient NUT</h3><input name="id" type="hidden">
+          <label>Nazwa przyjazna<input name="name" required placeholder="Proxmox-01"></label>
+          <label>Oczekiwany adres IP<input name="address" required placeholder="192.168.68.102"></label>
+          <label>Adres NUPSON widoczny z klienta<input name="server_address" required placeholder="192.168.68.5"></label>
+          <label>System<select name="platform"><option value="debian">Debian / Ubuntu / Proxmox</option><option value="rhel">RHEL / Rocky / AlmaLinux</option><option value="alpine">Alpine Linux</option><option value="generic">Inny Linux</option></select></label>
+          <label>Polityka wyłączania<select name="policy"><option value="inherit">Dziedzicz globalną</option><option value="critical">Tylko krytyczny stan UPS / FSD</option><option value="timer">Po określonym czasie na baterii</option><option value="immediate">Natychmiast po przejściu na baterię</option><option value="monitor_only">Tylko monitorowanie</option></select></label>
+          <label id="client-profile-delay-field">Opóźnienie od zaniku (s)<input name="delay_seconds" type="number" min="1" max="86400" value="600"></label>
+          <label>Końcowa zwłoka FINALDELAY (s)<input name="final_delay_seconds" type="number" min="0" max="300" value="5"></label>
+          <p class="wide muted">Zmiana zapisanego profilu nie aktualizuje zdalnej maszyny. Po zmianie pobierz i wgraj nową paczkę.</p>
+          <div class="wide form-actions"><button class="primary" type="submit">Zapisz profil</button><button id="cancel-client-profile" class="secondary" type="button">Anuluj</button><span id="client-profile-message"></span></div>
+        </form>
+        <article id="client-config-preview" class="panel hidden">
+          <div class="panel-head"><div><p class="eyebrow">GOTOWA KONFIGURACJA</p><h2 id="client-config-preview-title">Pliki klienta</h2></div><button id="close-client-preview" class="secondary" type="button">Zamknij</button></div>
+          <p class="warning-copy">Podgląd zawiera hasło klienta NUT. Nie udostępniaj tych plików poza zaufaną siecią.</p>
+          <div class="preview-toolbar"><select id="client-config-file" aria-label="Plik konfiguracji"></select><button id="copy-client-config" class="secondary" type="button"><i class="ti ti-copy"></i><span>Kopiuj</span></button><button id="download-client-config" class="primary" type="button"><i class="ti ti-download"></i><span>Pobierz ZIP</span></button></div>
+          <pre id="client-config-content"></pre>
+        </article>
+      </section>
+
+      <section id="view-events" class="view">
+        <div class="section-intro"><div><p class="eyebrow">HISTORIA</p><h2>Dziennik zdarzeń</h2></div><button id="refresh-events" class="secondary"><i class="ti ti-refresh"></i><span>Odśwież</span></button></div>
+        <div class="panel"><div id="events-list" class="timeline empty">Brak zdarzeń.</div></div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <div id="onboarding" class="onboarding hidden"><span>1</span><div><strong>Pierwsze uruchomienie</strong><p>Wykryj UPS, sprawdź parametry i zapisz konfigurację. Następnie dodaj hosty WoL.</p></div></div>
+        <div class="settings-tabs" role="tablist" aria-label="Sekcje ustawień">
+          <button class="settings-tab active" type="button" data-settings-tab="ups">UPS i NUT</button>
+          <button class="settings-tab" type="button" data-settings-tab="automation">Automatyka</button>
+          <button class="settings-tab" type="button" data-settings-tab="shutdown">Polityka klientów</button>
+          <button class="settings-tab" type="button" data-settings-tab="history">Historia i koszty</button>
+          <button class="settings-tab" type="button" data-settings-tab="webhook">Webhooki</button>
+        </div>
+
+        <section class="settings-section panel" data-settings-panel="ups">
+          <div class="settings-section-head">
+            <div class="section-icon"><i class="ti ti-plug"></i></div>
+            <div><p class="eyebrow">SPRZĘT I SERWER NUT</p><h2>UPS i NUT</h2><p class="muted">Wykrywanie urządzenia, sterownik i dane dostępowe klientów.</p></div>
+            <span id="ups-config-status" class="config-status">Sprawdzanie…</span>
+          </div>
+          <div class="settings-toolbar"><button id="scan-ups" class="secondary" type="button"><i class="ti ti-plug"></i><span>Skanuj USB</span></button><button id="delete-ups-config" class="danger hidden" type="button"><span>Usuń konfigurację</span></button></div>
+          <div id="scan-results" class="device-grid"></div>
+          <form id="ups-form" class="form-grid nested-form">
+            <label>Nazwa UPS<input name="name" value="ups" required></label>
+            <label>Nazwa użytkownika klientów NUT<input name="client_username" value="upsmon" maxlength="32" pattern="[A-Za-z0-9_.-]+" required></label>
+            <label>Sterownik<input name="driver" value="usbhid-ups" required></label>
+            <label>Port urządzenia<input name="port" value="auto" required></label>
+            <label>Vendor ID<input name="vendorid" placeholder="np. 051d"></label>
+            <label>Product ID<input name="productid" placeholder="np. 0002"></label>
+            <label>Numer seryjny<input name="serial"></label>
+            <label class="wide"><span id="client-password-label">Hasło klientów NUT</span><input name="client_password" type="password" minlength="6" autocomplete="new-password" placeholder="Pozostaw puste, aby zachować obecne"></label>
+            <label class="wide">Opis<input name="desc" placeholder="UPS w szafie serwerowej"></label>
+            <div class="wide form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zapisz i uruchom NUT</span></button><span id="ups-message"></span></div>
+          </form>
+          <div class="subsection-head"><div><h3>Diagnostyka UPS</h3><p class="muted">Dane udostępniane przez firmware urządzenia, pogrupowane według znaczenia.</p></div><button id="refresh-raw" class="secondary" type="button"><i class="ti ti-refresh"></i><span>Odśwież</span></button></div>
+          <div id="battery-health" class="battery-health"></div>
+          <div id="raw-vars" class="diagnostic-groups"></div>
+        </section>
+
+        <form id="automation-form" class="settings-section panel form-grid hidden" data-settings-panel="automation">
+          <div class="settings-section-head wide">
+            <div class="section-icon"><i class="ti ti-bolt"></i></div>
+            <div><p class="eyebrow">ZACHOWANIE PO AWARII</p><h2>Automatyka powrotu zasilania</h2><p class="muted">Najpierw NUPSON potwierdza ciągłość zasilania, potem czeka na bezpieczny zapas baterii i dopiero uruchamia hosty.</p></div>
+          </div>
+          <label><span class="field-title">1. Potwierdzenie ciągłości zasilania (s)<button class="help" type="button" aria-label="Wyjaśnienie czasu potwierdzania zasilania" data-tooltip="NUPSON nie stabilizuje prądu. Przez ten czas obserwuje, czy zasilanie sieciowe nie zaniknie ponownie. Każdy kolejny zanik rozpoczyna odliczanie od początku."><i class="ti ti-info"></i></button></span><input name="stabilization_seconds" type="number" min="1" max="86400"></label>
+          <label><span class="field-title">2. Wymagany poziom baterii (%)<button class="help" type="button" aria-label="Wyjaśnienie wymaganego poziomu baterii" data-tooltip="Po potwierdzeniu ciągłości zasilania NUPSON czeka na naładowanie baterii do tego poziomu. Dopiero wtedy rozpoczyna sprawdzanie i budzenie hostów, zachowując zapas na ewentualny kolejny zanik."><i class="ti ti-info"></i></button></span><input name="minimum_charge" type="number" min="0" max="100"></label>
+          <label><span class="field-title">Interwał odczytu (s)<button class="help" type="button" aria-label="Wyjaśnienie interwału odczytu" data-tooltip="Jak często NUPSON odczytuje stan UPS-a. Niższa wartość daje szybszą reakcję, ale zwiększa liczbę zapytań do NUT."><i class="ti ti-info"></i></button></span><input name="poll_seconds" type="number" min="1" max="60"></label>
+          <label><span class="field-title">Przypomnienie o awarii (min)<button class="help" type="button" aria-label="Wyjaśnienie przypomnień o awarii" data-tooltip="Podczas pracy na baterii NUPSON cyklicznie wyśle webhook z aktualnym poziomem baterii, pozostałym czasem pracy, obciążeniem i mocą. Domyślnie co 15 minut."><i class="ti ti-info"></i></button></span><input name="outage_reminder_minutes" type="number" min="1" max="1440"></label>
+          <label><span class="field-title">Próby WoL<button class="help" type="button" aria-label="Wyjaśnienie prób WoL" data-tooltip="Maksymalna liczba pakietów Wake-on-LAN wysyłanych do hosta, który po potwierdzeniu ciągłości zasilania nadal nie odpowiada."><i class="ti ti-info"></i></button></span><input name="wake_attempts" type="number" min="1" max="10"></label>
+          <label><span class="field-title">Odstęp prób WoL (s)<button class="help" type="button" aria-label="Wyjaśnienie odstępu prób WoL" data-tooltip="Czas między kolejnymi próbami uruchomienia tego samego hosta. Zwiększ go dla urządzeń, które długo startują."><i class="ti ti-info"></i></button></span><input name="wake_interval_seconds" type="number" min="1" max="600"></label>
+          <label><span class="field-title">Końcowy czas weryfikacji (s)<button class="help" type="button" aria-label="Wyjaśnienie czasu weryfikacji hosta" data-tooltip="Po ostatniej próbie WoL NUPSON przez ten czas wysyła pojedyncze zapytania ping. Odpowiedź oznacza sukces; jej brak powoduje powiadomienie o niepotwierdzonym uruchomieniu."><i class="ti ti-info"></i></button></span><input name="wake_verification_seconds" type="number" min="5" max="1800"></label>
+          <label><span class="field-title">Odstęp między falami (s)<button class="help" type="button" aria-label="Wyjaśnienie fal WoL" data-tooltip="Przerwa między grupami hostów. Pozwala najpierw uruchomić sieć lub storage, a dopiero później zależne serwery."><i class="ti ti-info"></i></button></span><input name="wave_delay_seconds" type="number" min="0" max="3600"></label>
+          <label><span class="field-title">Retencja zdarzeń (dni)<button class="help" type="button" aria-label="Wyjaśnienie retencji" data-tooltip="Po ilu dniach stare wpisy historii są automatycznie usuwane. Nie wpływa to na działanie UPS ani WoL."><i class="ti ti-info"></i></button></span><input name="event_retention_days" type="number" min="1" max="3650"></label>
+          <div class="wide form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zapisz automatykę</span></button><span id="automation-message"></span></div>
+        </form>
+
+        <form id="shutdown-policy-form" class="settings-section panel form-grid hidden" data-settings-panel="shutdown">
+          <div class="settings-section-head wide">
+            <div class="section-icon"><i class="ti ti-server"></i></div>
+            <div><p class="eyebrow">KLIENCI REMOTE</p><h2>Globalna polityka klientów</h2><p class="muted">Wartości dziedziczone przez profile klientów podczas generowania plików.</p></div>
+          </div>
+          <label><span class="field-title">Domyślna reakcja<button class="help" type="button" aria-label="Wyjaśnienie reakcji klientów" data-tooltip="Krytyczny stan czeka na sygnał LOWBATT/FSD. Polityka czasowa wyłącza klienta po ustalonej pracy na baterii, natychmiastowa robi to od razu, a monitorowanie nigdy nie uruchamia shutdown."><i class="ti ti-info"></i></button></span><select name="client_shutdown_policy"><option value="critical">Krytyczny stan UPS / FSD</option><option value="timer">Po określonym czasie na baterii</option><option value="immediate">Natychmiast po zaniku</option><option value="monitor_only">Tylko monitorowanie</option></select></label>
+          <label id="global-client-delay-field"><span class="field-title">Opóźnienie od zaniku (s)<button class="help" type="button" aria-label="Wyjaśnienie opóźnienia wyłączenia" data-tooltip="Dotyczy tylko polityki czasowej. Powrót zasilania przed końcem odliczania anuluje zaplanowane wyłączenie."><i class="ti ti-info"></i></button></span><input name="client_shutdown_delay_seconds" type="number" min="1" max="86400"></label>
+          <label><span class="field-title">Końcowa zwłoka FINALDELAY (s)<button class="help" type="button" aria-label="Wyjaśnienie FINALDELAY" data-tooltip="Krótka lokalna zwłoka procesu upsmon przed wykonaniem polecenia wyłączenia po utracie wymaganych źródeł zasilania."><i class="ti ti-info"></i></button></span><input name="client_final_delay_seconds" type="number" min="0" max="300"></label>
+          <p class="wide muted">Zmiana globalnej polityki nie modyfikuje plików już wgranych na klienty. Profile dziedziczące zostaną oznaczone jako wymagające ponownego wygenerowania.</p>
+          <div class="wide form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zapisz politykę</span></button><span id="shutdown-policy-message"></span></div>
+        </form>
+
+        <form id="history-settings-form" class="settings-section panel form-grid hidden" data-settings-panel="history">
+          <div class="settings-section-head wide">
+            <div class="section-icon"><i class="ti ti-history"></i></div>
+            <div><p class="eyebrow">DANE I ENERGIA</p><h2>Historia i koszty</h2><p class="muted">Określ cenę energii i czas przechowywania próbek pracy UPS.</p></div>
+          </div>
+          <label><span class="field-title">Cena energii (PLN/kWh)<button class="help" type="button" aria-label="Wyjaśnienie ceny energii" data-tooltip="Cena jednej kilowatogodziny używana do obliczenia orientacyjnego kosztu dla wybranego zakresu historii."><i class="ti ti-info"></i></button></span><input name="energy_price_per_kwh" type="number" min="0" max="10000" step="0.0001"></label>
+          <label><span class="field-title">Moc znamionowa odbiorników (W)<button class="help" type="button" aria-label="Wyjaśnienie mocy znamionowej" data-tooltip="Opcjonalna wartość zapasowa. Jeśli UPS nie raportuje mocy w watach ani swojej znamionowej mocy rzeczywistej, NUPSON pomnoży tę wartość przez procent obciążenia. Ustaw 0, aby wyłączyć ten szacunek."><i class="ti ti-info"></i></button></span><input name="nominal_power_watts" type="number" min="0" max="100000" step="1"></label>
+          <label><span class="field-title">Retencja pomiarów (dni)<button class="help" type="button" aria-label="Wyjaśnienie retencji pomiarów" data-tooltip="Jak długo przechowywać minutowe próbki parametrów UPS. Domyślnie 180 dni."><i class="ti ti-info"></i></button></span><input name="history_retention_days" type="number" min="7" max="3650"></label>
+          <div class="wide form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zapisz historię i koszty</span></button><span id="history-settings-message"></span></div>
+        </form>
+
+        <form id="webhook-form" class="settings-section panel form-grid hidden" data-settings-panel="webhook">
+          <div class="settings-section-head wide">
+            <div class="section-icon"><i class="ti ti-webhook"></i></div>
+            <div><p class="eyebrow">POWIADOMIENIA</p><h2>Webhooki</h2><p class="muted">Wysyłaj czytelne alerty o zasilaniu, komunikacji i wynikach WoL.</p></div>
+          </div>
+          <label class="wide"><span class="field-title">URL webhooka<button class="help" type="button" aria-label="Wyjaśnienie URL webhooka" data-tooltip="Adres odbiorcy powiadomień. Webhook Discord jest rozpoznawany automatycznie; pusty adres wyłącza wysyłanie."><i class="ti ti-info"></i></button></span><input name="webhook_url" type="url" placeholder="https://example.net/nupson"></label>
+          <label class="wide"><span class="field-title">Sekret podpisu HMAC<button class="help" type="button" aria-label="Wyjaśnienie sekretu webhooka" data-tooltip="Opcjonalny sekret dla własnych integracji. Odbiorca może nim zweryfikować podpis X-NUPSON-Signature. Discord go nie wymaga."><i class="ti ti-info"></i></button></span><input name="webhook_secret" type="password" maxlength="256" autocomplete="new-password" placeholder="Pozostaw puste, aby zachować obecny"></label>
+          <p class="wide muted">Zdarzenia są wysyłane metodą POST. Sekret nigdy nie jest zwracany przez API.</p>
+          <div class="wide form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zapisz webhook</span></button><span id="webhook-settings-message"></span></div>
+          <div class="wide form-actions"><button id="test-webhook" class="secondary" type="button"><i class="ti ti-webhook"></i><span>Wyślij test</span></button><span id="webhook-message"></span></div>
+          <details id="webhook-scenario-tester" class="wide webhook-tester">
+            <summary><span><strong>Tester scenariuszy</strong><small>Wyślij przykładowe powiadomienia bez wywoływania prawdziwych zdarzeń</small></span></summary>
+            <div class="webhook-tester-content">
+              <p class="muted">Każda wiadomość jest oznaczona jako TEST. Używany jest zapisany wyżej adres webhooka; symulacja nie zmienia stanu UPS, hostów ani automatyki.</p>
+              <div id="webhook-scenarios" class="webhook-scenario-list"><span class="muted">Rozwiń, aby pobrać listę scenariuszy.</span></div>
+              <p id="webhook-scenario-message" class="muted"></p>
+            </div>
+          </details>
+        </form>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="/app.js?v=16" defer></script>
+</body>
+</html>
