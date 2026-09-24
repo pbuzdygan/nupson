@@ -15,6 +15,9 @@ QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
 NUT_BINARY_DIRS = (Path("/usr/sbin"), Path("/usr/libexec/nut"), Path("/lib/nut"))
 T = TypeVar("T")
 
+UPS_DRIVER_START_TIMEOUT_SECONDS = 15
+UPS_DRIVER_STOP_TIMEOUT_SECONDS = 8
+
 
 class NutError(RuntimeError):
     pass
@@ -185,13 +188,23 @@ class NutSupervisor:
             if not self.enabled or not (self.nut_dir / "ups.conf").exists():
                 return
             environment = self._environment()
-            result = subprocess.run(
-                ["upsdrvctl", "start"],
-                env=environment,
-                check=False,
-                capture_output=True,
-                text=True,
-            )
+            try:
+                result = subprocess.run(
+                    ["upsdrvctl", "start"],
+                    env=environment,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=UPS_DRIVER_START_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                self.startup_error = (
+                    "Uruchamianie sterownika UPS przerwano po 15 sekundach. "
+                    "Urządzenie lub wskazany host nie odpowiada; sprawdź połączenie, "
+                    "adres, port i ustawienia protokołu."
+                )
+                self.stop()
+                return
             if result.returncode != 0:
                 output = "\n".join(
                     part.strip() for part in (result.stderr, result.stdout) if part.strip()
@@ -209,13 +222,19 @@ class NutSupervisor:
             environment = self._environment()
             self._stop_servers()
             if self.enabled and (self.nut_dir / "ups.conf").exists():
-                subprocess.run(
-                    ["upsdrvctl", "stop"],
-                    env=environment,
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                )
+                try:
+                    subprocess.run(
+                        ["upsdrvctl", "stop"],
+                        env=environment,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        timeout=UPS_DRIVER_STOP_TIMEOUT_SECONDS,
+                    )
+                except subprocess.TimeoutExpired:
+                    # Never keep the process lock indefinitely: deletion and a new
+                    # configuration must remain available after a stuck driver.
+                    pass
 
     def restart(self) -> None:
         with self._process_lock:

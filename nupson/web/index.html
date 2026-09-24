@@ -19,8 +19,8 @@
   <link rel="apple-touch-icon" sizes="152x152" href="/assets/apple-touch-icon-152.png">
   <link rel="apple-touch-icon" sizes="167x167" href="/assets/apple-touch-icon-167.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-  <link rel="stylesheet" href="/styles.css?v=6">
-  <link rel="stylesheet" href="/dashboard.css?v=12">
+  <link rel="stylesheet" href="/styles.css?v=7">
+  <link rel="stylesheet" href="/dashboard.css?v=14">
 </head>
 <body>
   <div id="auth" class="auth-shell hidden">
@@ -168,6 +168,7 @@
           <button class="settings-tab" type="button" data-settings-tab="shutdown">Polityka klientów</button>
           <button class="settings-tab" type="button" data-settings-tab="history">Historia i koszty</button>
           <button class="settings-tab" type="button" data-settings-tab="webhook">Webhooki</button>
+          <button class="settings-tab" type="button" data-settings-tab="account">Konto</button>
         </div>
 
         <section class="settings-section panel" data-settings-panel="ups">
@@ -178,10 +179,12 @@
           </div>
           <div class="settings-toolbar"><button id="scan-ups" class="secondary" type="button"><i class="ti ti-plug"></i><span>Skanuj USB</span></button><button id="delete-ups-config" class="danger hidden" type="button"><span>Usuń konfigurację</span></button></div>
           <div id="scan-results" class="device-grid"></div>
-          <form id="ups-form" class="form-grid nested-form">
-            <label class="wide">Profil połączenia<select name="connection_type" required><option value="usb">USB — bezpośrednie połączenie</option><option value="remote_nut">Zdalny serwer NUT</option><option value="snmp">SNMP — karta sieciowa UPS</option></select></label>
-            <label>Nazwa UPS w NUPSON<input name="name" value="ups" required maxlength="48" pattern="[A-Za-z0-9_.-]+"></label>
-            <label>Nazwa użytkownika klientów NUT<input name="client_username" value="upsmon" maxlength="32" pattern="[A-Za-z0-9_.-]+" required></label>
+          <form id="ups-form" class="nested-form">
+            <section class="ups-config-block">
+              <div class="ups-config-heading"><span>1</span><div><h3>Połączenie NUPSON z UPS</h3><p class="muted">Wybierz sposób komunikacji i uzupełnij parametry wymagane przez ten profil.</p></div></div>
+              <div class="form-grid ups-config-grid">
+                <label class="wide">Profil połączenia<select name="connection_type" required><option value="usb">USB — bezpośrednie połączenie</option><option value="remote_nut">Zdalny serwer NUT</option><option value="snmp">SNMP — karta sieciowa UPS</option></select></label>
+
 
             <div class="connection-fields" data-connection-profile="usb">
               <p class="profile-help wide">UPS jest podłączony bezpośrednio do hosta NUPSON przez USB HID.</p>
@@ -221,16 +224,27 @@
               </div>
             </div>
 
-            <label class="wide"><span id="client-password-label">Hasło klientów NUT</span><input name="client_password" type="password" minlength="6" autocomplete="new-password" placeholder="Pozostaw puste, aby zachować obecne"></label>
-            <label class="wide">Opis<input name="desc" maxlength="160" placeholder="UPS w szafie serwerowej"></label>
-            <div class="wide form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zapisz i uruchom NUT</span></button><span id="ups-message"></span></div>
+                <label class="wide">Opis urządzenia<input name="desc" maxlength="160" placeholder="UPS w szafie serwerowej"></label>
+              </div>
+            </section>
+
+            <section class="ups-config-block client-access-block">
+              <div class="ups-config-heading"><span>2</span><div><h3>Dostęp dla klientów NUT</h3><p class="muted">Te dane wpisują klienci upsmon, aby łączyć się z serwerem NUT udostępnianym przez NUPSON.</p></div></div>
+              <div class="form-grid ups-config-grid">
+                <label>Nazwa UPS dla klientów<input name="name" value="ups" required maxlength="48" pattern="[A-Za-z0-9_.-]+"></label>
+                <label>Nazwa użytkownika klientów NUT<input name="client_username" value="upsmon" maxlength="32" pattern="[A-Za-z0-9_.-]+" required></label>
+                <label class="wide"><span id="client-password-label">Hasło klientów NUT</span><input name="client_password" type="password" minlength="6" autocomplete="new-password" placeholder="Pozostaw puste, aby zachować obecne"></label>
+              </div>
+            </section>
+
+            <div class="form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zapisz i uruchom NUT</span></button><span id="ups-message"></span></div>
           </form>
-          <div class="subsection-head"><div><h3>Diagnostyka UPS</h3><p class="muted">Dane udostępniane przez firmware urządzenia, pogrupowane według znaczenia.</p></div><button id="refresh-raw" class="secondary" type="button"><i class="ti ti-refresh"></i><span>Odśwież</span></button></div>
+          <div class="subsection-head"><div class="ups-config-heading"><span>3</span><div><h3>Diagnostyka UPS</h3><p class="muted">Dane udostępniane przez firmware urządzenia, pogrupowane według znaczenia.</p></div></div><button id="refresh-raw" class="secondary" type="button"><i class="ti ti-refresh"></i><span>Odśwież</span></button></div>
           <div id="battery-health" class="battery-health"></div>
           <div id="raw-vars" class="diagnostic-groups"></div>
         </section>
 
-        <form id="automation-form" class="settings-section panel form-grid hidden" data-settings-panel="automation">
+        <form id="automation-form" class="settings-section panel form-grid compact-settings-form hidden" data-settings-panel="automation">
           <div class="settings-section-head wide">
             <div class="section-icon"><i class="ti ti-bolt"></i></div>
             <div><p class="eyebrow">ZACHOWANIE PO AWARII</p><h2>Automatyka powrotu zasilania</h2><p class="muted">Najpierw NUPSON potwierdza ciągłość zasilania, potem czeka na bezpieczny zapas baterii i dopiero uruchamia hosty.</p></div>
@@ -289,10 +303,22 @@
             </div>
           </details>
         </form>
+
+        <form id="account-password-form" class="settings-section panel form-grid hidden" data-settings-panel="account">
+          <div class="settings-section-head wide">
+            <div class="section-icon"><i class="ti ti-users"></i></div>
+            <div><p class="eyebrow">BEZPIECZEŃSTWO KONTA</p><h2>Zmiana hasła administratora</h2><p class="muted">Po zmianie wszystkie wcześniejsze sesje zostaną wylogowane.</p></div>
+          </div>
+          <label class="wide">Obecne hasło<input name="current_password" type="password" minlength="10" autocomplete="current-password" required></label>
+          <label>Nowe hasło<input name="new_password" type="password" minlength="10" autocomplete="new-password" required></label>
+          <label>Powtórz nowe hasło<input name="new_password_confirmation" type="password" minlength="10" autocomplete="new-password" required></label>
+          <p class="wide account-security-note">Hasło ma co najmniej 10 znaków i jest przechowywane wyłącznie jako solony skrót scrypt. Nie można go odczytać z panelu ani odszyfrować z bazy.</p>
+          <div class="wide form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zmień hasło</span></button><span id="account-password-message" role="status"></span></div>
+        </form>
       </section>
     </main>
   </div>
   <div id="toast" class="toast hidden"></div>
-  <script src="/app.js?v=17" defer></script>
+  <script src="/app.js?v=20" defer></script>
 </body>
 </html>

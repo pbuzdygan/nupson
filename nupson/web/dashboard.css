@@ -1321,3 +1321,138 @@ nav a {
     overflow-wrap: anywhere;
   }
 }
+
+/* Stable desktop navigation and clearer settings hierarchy. */
+@media (min-width: 901px) {
+  aside {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: 230px;
+    height: 100dvh;
+    overflow-y: auto;
+  }
+
+  main {
+    grid-column: 2;
+    width: 100%;
+    margin: 0 auto;
+  }
+}
+
+.ups-config-block {
+  padding: 18px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface2) 58%, var(--surface));
+}
+
+.client-access-block {
+  border-color: color-mix(in srgb, var(--green) 34%, var(--line));
+  background: color-mix(in srgb, var(--green2) 38%, var(--surface));
+}
+
+.ups-config-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ups-config-heading > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--green);
+  background: var(--green2);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ups-config-heading h3 {
+  margin: 3px 0 2px;
+}
+
+.ups-config-heading p {
+  margin-bottom: 0;
+  font-size: 12px;
+}
+
+.ups-config-grid {
+  margin: 16px 0 0;
+}
+
+#ups-form > .form-actions {
+  padding: 4px 0 18px;
+}
+
+.subsection-head > .ups-config-heading {
+  flex: 1 1 auto;
+}
+
+#automation-form {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+#automation-form input {
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+[data-theme="light"] button.primary {
+  border-color: #acd2b8;
+  color: #126532;
+  background: #e8f4eb;
+  box-shadow: 0 1px 2px #163b2112;
+}
+
+[data-theme="light"] button.primary:hover {
+  border-color: #76b98b;
+  background: #dceee1;
+  filter: none;
+}
+
+[data-theme="light"] button.danger {
+  border-color: #e3bbb7;
+  color: #a33731;
+  background: #fff3f1;
+}
+
+[data-theme="light"] button.danger:hover {
+  border-color: #d79d98;
+  background: #fbe7e4;
+}
+
+@media (max-width: 1180px) and (min-width: 701px) {
+  #automation-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  #automation-form {
+    grid-template-columns: 1fr;
+  }
+
+  .ups-config-block {
+    padding: 14px;
+  }
+
+  .subsection-head {
+    align-items: flex-start;
+  }
+}
+
+.account-security-note {
+  padding: 12px 14px;
+  margin: 0;
+  border-left: 3px solid var(--green);
+  border-radius: 0 10px 10px 0;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--green2) 45%, var(--surface));
+  font-size: 12px;
+}

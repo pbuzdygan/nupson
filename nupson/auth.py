@@ -10,13 +10,28 @@ import time
 from .db import Database
 
 
+SCRYPT_COST = 2**17
+SCRYPT_MAX_MEMORY = 256 * 1024 * 1024
+
+
 def hash_password(password: str) -> str:
     if len(password) < 10:
         raise ValueError("Password must contain at least 10 characters")
     salt = os.urandom(16)
-    digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
+    digest = hashlib.scrypt(
+        password.encode(),
+        salt=salt,
+        n=SCRYPT_COST,
+        r=8,
+        p=1,
+        dklen=32,
+        maxmem=SCRYPT_MAX_MEMORY,
+    )
     return (
-        "scrypt$16384$" + base64.b64encode(salt).decode() + "$" + base64.b64encode(digest).decode()
+        f"scrypt${SCRYPT_COST}$"
+        + base64.b64encode(salt).decode()
+        + "$"
+        + base64.b64encode(digest).decode()
     )
 
 
@@ -27,7 +42,15 @@ def verify_password(password: str, encoded: str) -> bool:
             return False
         salt = base64.b64decode(salt_text)
         expected = base64.b64decode(digest_text)
-        actual = hashlib.scrypt(password.encode(), salt=salt, n=int(cost), r=8, p=1, dklen=32)
+        actual = hashlib.scrypt(
+            password.encode(),
+            salt=salt,
+            n=int(cost),
+            r=8,
+            p=1,
+            dklen=32,
+            maxmem=SCRYPT_MAX_MEMORY,
+        )
         return hmac.compare_digest(actual, expected)
     except (ValueError, TypeError):
         return False
@@ -72,6 +95,20 @@ class AuthManager:
     def logout(self, token: str | None) -> None:
         if token:
             self.database.delete_session(self._token_hash(token))
+
+    def change_password(
+        self, token: str | None, current_password: str, new_password: str
+    ) -> str | None:
+        if not token:
+            return None
+        username = self.database.session_username(self._token_hash(token))
+        encoded = self.database.password_hash(username) if username else None
+        if not username or not encoded or not verify_password(current_password, encoded):
+            return None
+        if verify_password(new_password, encoded):
+            raise ValueError("New password must be different from the current password")
+        self.database.update_password(username, hash_password(new_password))
+        return self.create_session(username)
 
     @staticmethod
     def _token_hash(token: str) -> str:

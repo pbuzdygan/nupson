@@ -31,6 +31,35 @@ class AuthTests(unittest.TestCase):
             restarted_auth.logout(token)
             self.assertFalse(restarted_auth.valid(token))
 
+    def test_change_password_revokes_previous_sessions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            auth = AuthManager(Database(Path(directory) / "test.db"))
+            first_token = auth.setup("admin", "a-long-test-password")
+            second_token = auth.login("admin", "a-long-test-password")
+
+            replacement_token = auth.change_password(
+                first_token, "a-long-test-password", "a-new-long-test-password"
+            )
+
+            self.assertIsNotNone(replacement_token)
+            self.assertFalse(auth.valid(first_token))
+            self.assertFalse(auth.valid(second_token))
+            self.assertTrue(auth.valid(replacement_token))
+            self.assertIsNone(auth.login("admin", "a-long-test-password"))
+            self.assertIsNotNone(auth.login("admin", "a-new-long-test-password"))
+
+    def test_change_password_rejects_incorrect_current_password(self):
+        with tempfile.TemporaryDirectory() as directory:
+            auth = AuthManager(Database(Path(directory) / "test.db"))
+            token = auth.setup("admin", "a-long-test-password")
+
+            replacement_token = auth.change_password(
+                token, "incorrect-password", "a-new-long-test-password"
+            )
+
+            self.assertIsNone(replacement_token)
+            self.assertTrue(auth.valid(token))
+            self.assertIsNotNone(auth.login("admin", "a-long-test-password"))
 
 if __name__ == "__main__":
     unittest.main()

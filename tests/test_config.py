@@ -22,6 +22,8 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("[rack-ups]", rendered)
         self.assertIn("driver = usbhid-ups", rendered)
         self.assertIn("serial = ABC123", rendered)
+        self.assertIn("maxstartdelay = 10", rendered)
+        self.assertIn("maxretry = 1", rendered)
 
     def test_renders_remote_nut_repeater_profile(self):
         config = validate_ups_config(
@@ -62,6 +64,8 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("driver = snmp-ups", rendered)
         self.assertIn("secLevel = authPriv", rendered)
         self.assertIn("authPassword = authentication-secret", rendered)
+        self.assertIn("snmp_retries = 1", rendered)
+        self.assertIn("snmp_timeout = 1", rendered)
 
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)

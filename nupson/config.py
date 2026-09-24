@@ -181,6 +181,8 @@ def validate_ups_config(
             "snmp_version": version,
             "mibs": mibs,
             "pollfreq": str(pollfreq),
+            "snmp_retries": "1",
+            "snmp_timeout": "1",
         }
     )
     if version in {"v1", "v2c"}:
@@ -250,7 +252,15 @@ def validate_nut_username(value: str) -> str:
 
 def render_nut_config(config: dict[str, object]) -> str:
     cfg = validate_ups_config(config)
-    lines = [f"[{cfg['name']}]", f"    driver = {cfg['driver']}", f"    port = {cfg['port']}"]
+    lines = [
+        "maxstartdelay = 10",
+        "maxretry = 1",
+        "retrydelay = 1",
+        "",
+        f"[{cfg['name']}]",
+        f"    driver = {cfg['driver']}",
+        f"    port = {cfg['port']}",
+    ]
     options: tuple[tuple[str, str], ...]
     if cfg["connection_type"] == "usb":
         options = tuple((key, key) for key in ("vendorid", "productid", "serial"))
@@ -261,6 +271,8 @@ def render_nut_config(config: dict[str, object]) -> str:
             ("snmp_version", "snmp_version"),
             ("mibs", "mibs"),
             ("pollfreq", "pollfreq"),
+            ("snmp_retries", "snmp_retries"),
+            ("snmp_timeout", "snmp_timeout"),
             ("community", "community"),
             ("secLevel", "sec_level"),
             ("secName", "sec_name"),

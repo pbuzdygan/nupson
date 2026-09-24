@@ -207,6 +207,26 @@ class Database:
         with self._lock, self.connect() as db:
             db.execute("DELETE FROM sessions WHERE token_hash=?", (token_hash,))
 
+    def session_username(self, token_hash: str) -> str | None:
+        now = int(time.time())
+        with self._lock, self.connect() as db:
+            db.execute("DELETE FROM sessions WHERE expires_at < ?", (now,))
+            row = db.execute(
+                "SELECT username FROM sessions WHERE token_hash=? AND expires_at>=?",
+                (token_hash, now),
+            ).fetchone()
+        return str(row["username"]) if row else None
+
+    def update_password(self, username: str, password_hash: str) -> None:
+        with self._lock, self.connect() as db:
+            cursor = db.execute(
+                "UPDATE users SET password_hash=? WHERE username=?",
+                (password_hash, username),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError("User not found")
+            db.execute("DELETE FROM sessions WHERE username=?", (username,))
+
     def add_event(self, kind: str, message: str, level: str = "info", data: Any = None) -> int:
         with self._lock, self.connect() as db:
             cursor = db.execute(

@@ -28,7 +28,7 @@ from .config import (
     write_nut_files,
 )
 from .db import Database
-from .nut import NutError, scan_usb
+from .nut import NutClient, NutError, scan_usb
 from .service import INCOMPLETE_TELEMETRY_ERROR, NupsonService
 from .wol import normalize_mac
 
@@ -172,6 +172,25 @@ class Handler(BaseHTTPRequestHandler):
                     "Set-Cookie": "nupson_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict"
                 },
             )
+        if route == "/api/auth/password":
+            try:
+                data = self.body()
+                new_password = str(data.get("new_password", ""))
+                if new_password != str(data.get("new_password_confirmation", "")):
+                    raise ValueError("New password confirmation does not match")
+                token = self.app.auth.change_password(
+                    self.session_token(),
+                    str(data.get("current_password", "")),
+                    new_password,
+                )
+            except ValueError as error:
+                return self.error(str(error), HTTPStatus.BAD_REQUEST)
+            if not token:
+                return self.error("Current password is incorrect", HTTPStatus.UNAUTHORIZED)
+            self.app.database.add_event(
+                "auth", "Administrator password changed; previous sessions revoked"
+            )
+            return self.session_response(token)
         if route == "/api/settings":
             try:
                 return self.json(self.app.service.update_settings(self.body()))
@@ -228,6 +247,22 @@ class Handler(BaseHTTPRequestHandler):
                 if len(client_password) < 6:
                     raise ValueError("NUT client password must contain at least 6 characters")
                 ups = validate_ups_config(data, read_ups_secrets(self.app.config.nut_dir))
+                if ups["connection_type"] == "remote_nut":
+                    try:
+                        remote_values = NutClient(
+                            ups["remote_host"], int(ups["remote_port"]), timeout=3
+                        ).variables(ups["remote_ups_name"])
+                    except NutError as error:
+                        raise ValueError(
+                            "Zdalny serwer NUT nie odpowiada pod adresem "
+                            f"{ups['remote_host']}:{ups['remote_port']}. "
+                            "Sprawdź host, port, zaporę i dostępność usługi NUT."
+                        ) from error
+                    if not remote_values.get("ups.status"):
+                        raise ValueError(
+                            f"Zdalny UPS {ups['remote_ups_name']} nie udostępnia stanu. "
+                            "Sprawdź nazwę UPS i konfigurację zdalnego serwera NUT."
+                        )
                 public_ups = public_ups_config(ups)
 
                 def write_configuration() -> dict[str, str]:
@@ -248,6 +283,23 @@ class Handler(BaseHTTPRequestHandler):
                     ready = False
                 else:
                     ready, readiness_error = self.app.service.wait_until_ready(ups["name"])
+                if not ready and readiness_error != INCOMPLETE_TELEMETRY_ERROR:
+                    if ups["connection_type"] == "snmp":
+                        readiness_error = (
+                            f"Brak odpowiedzi SNMP z {ups['snmp_host']}:{ups['snmp_port']}. "
+                            "Sprawdź, czy SNMP jest włączone, oraz zweryfikuj adres, "
+                            "port, wersję, dane dostępowe i reguły zapory."
+                        )
+                    elif ups["connection_type"] == "remote_nut":
+                        readiness_error = (
+                            "Zdalny serwer NUT został osiągnięty, ale lokalny profil "
+                            "nie udostępnił telemetrii w wyznaczonym czasie."
+                        )
+                    else:
+                        readiness_error = (
+                            "UPS USB nie odpowiedział w wyznaczonym czasie. Sprawdź "
+                            "podłączenie, mapowanie urządzenia i uprawnienia USB."
+                        )
                 level = "info" if ready else "warning"
                 message = f"UPS {ups['name']} configured" + (
                     "" if ready else "; waiting for driver"

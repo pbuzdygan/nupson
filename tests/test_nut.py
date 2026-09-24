@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from subprocess import CompletedProcess
+from subprocess import CompletedProcess, TimeoutExpired
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
@@ -51,6 +51,29 @@ class NutParserTests(unittest.TestCase):
             ):
                 supervisor.start()
             self.assertIn("inny proces lub kontener", supervisor.startup_error or "")
+            popen.assert_not_called()
+
+    def test_driver_commands_have_hard_timeouts(self):
+        with TemporaryDirectory() as directory:
+            nut_dir = Path(directory)
+            (nut_dir / "ups.conf").write_text("[ups]\n")
+            supervisor = NutSupervisor(nut_dir, True)
+            stopped = CompletedProcess(["upsdrvctl", "stop"], 0, stdout="", stderr="")
+            with (
+                patch(
+                    "nupson.nut.subprocess.run",
+                    side_effect=[
+                        TimeoutExpired(["upsdrvctl", "start"], 15),
+                        stopped,
+                    ],
+                ) as run,
+                patch("nupson.nut.subprocess.Popen") as popen,
+            ):
+                supervisor.start()
+
+            self.assertIn("przerwano po 15 sekundach", supervisor.startup_error or "")
+            self.assertEqual(run.call_args_list[0].kwargs["timeout"], 15)
+            self.assertEqual(run.call_args_list[1].kwargs["timeout"], 8)
             popen.assert_not_called()
 
     def test_reconfigure_stops_old_driver_before_writing_new_config(self):
