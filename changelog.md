@@ -3,7 +3,7 @@
 All notable changes to NUPSON are documented here. Unreleased entries describe
 user-visible or operational effects rather than implementation details.
 
-## Unreleased
+## 0.1.0
 
 ### New features
 
