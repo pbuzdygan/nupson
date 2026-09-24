@@ -7,6 +7,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
@@ -222,7 +223,9 @@ class NutSupervisor:
             environment = self._environment()
             self._stop_servers()
             if self.enabled and (self.nut_dir / "ups.conf").exists():
-                try:
+                # Never keep the process lock indefinitely: deletion and a new
+                # configuration must remain available after a stuck driver.
+                with suppress(subprocess.TimeoutExpired):
                     subprocess.run(
                         ["upsdrvctl", "stop"],
                         env=environment,
@@ -231,10 +234,6 @@ class NutSupervisor:
                         text=True,
                         timeout=UPS_DRIVER_STOP_TIMEOUT_SECONDS,
                     )
-                except subprocess.TimeoutExpired:
-                    # Never keep the process lock indefinitely: deletion and a new
-                    # configuration must remain available after a stuck driver.
-                    pass
 
     def restart(self) -> None:
         with self._process_lock:

@@ -61,5 +61,6 @@ class AuthTests(unittest.TestCase):
             self.assertTrue(auth.valid(token))
             self.assertIsNotNone(auth.login("admin", "a-long-test-password"))
 
+
 if __name__ == "__main__":
     unittest.main()

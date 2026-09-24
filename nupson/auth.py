@@ -9,7 +9,6 @@ import time
 
 from .db import Database
 
-
 SCRYPT_COST = 2**17
 SCRYPT_MAX_MEMORY = 256 * 1024 * 1024
 
