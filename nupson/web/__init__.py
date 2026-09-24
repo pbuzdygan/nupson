@@ -1,0 +1,1 @@
+"""Embedded NUPSON web interface."""
