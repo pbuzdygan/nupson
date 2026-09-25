@@ -20,7 +20,7 @@
   <link rel="apple-touch-icon" sizes="167x167" href="/assets/apple-touch-icon-167.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
   <link rel="stylesheet" href="/styles.css?v=7">
-  <link rel="stylesheet" href="/dashboard.css?v=14">
+  <link rel="stylesheet" href="/dashboard.css?v=16">
 </head>
 <body>
   <div id="auth" class="auth-shell hidden">
@@ -140,7 +140,7 @@
           <label>Nazwa przyjazna<input name="name" required placeholder="Proxmox-01"></label>
           <label>Oczekiwany adres IP<input name="address" required placeholder="192.168.68.102"></label>
           <label>Adres NUPSON widoczny z klienta<input name="server_address" required placeholder="192.168.68.5"></label>
-          <label>System<select name="platform"><option value="debian">Debian / Ubuntu / Proxmox</option><option value="rhel">RHEL / Rocky / AlmaLinux</option><option value="alpine">Alpine Linux</option><option value="generic">Inny Linux</option></select></label>
+          <label>System<select name="platform"><option value="debian">Debian / Ubuntu / Proxmox</option><option value="rhel">Fedora / RHEL / Rocky / AlmaLinux</option><option value="alpine">Alpine Linux</option><option value="generic">Inny Linux</option></select></label>
           <label>Polityka wyłączania<select name="policy"><option value="inherit">Dziedzicz globalną</option><option value="critical">Tylko krytyczny stan UPS / FSD</option><option value="timer">Po określonym czasie na baterii</option><option value="immediate">Natychmiast po przejściu na baterię</option><option value="monitor_only">Tylko monitorowanie</option></select></label>
           <label id="client-profile-delay-field">Opóźnienie od zaniku (s)<input name="delay_seconds" type="number" min="1" max="86400" value="600"></label>
           <label>Końcowa zwłoka FINALDELAY (s)<input name="final_delay_seconds" type="number" min="0" max="300" value="5"></label>
@@ -180,24 +180,24 @@
           <div class="settings-toolbar"><button id="scan-ups" class="secondary" type="button"><i class="ti ti-plug"></i><span>Skanuj USB</span></button><button id="delete-ups-config" class="danger hidden" type="button"><span>Usuń konfigurację</span></button></div>
           <div id="scan-results" class="device-grid"></div>
           <form id="ups-form" class="nested-form">
-            <section class="ups-config-block">
-              <div class="ups-config-heading"><span>1</span><div><h3>Połączenie NUPSON z UPS</h3><p class="muted">Wybierz sposób komunikacji i uzupełnij parametry wymagane przez ten profil.</p></div></div>
+            <details class="ups-config-block">
+              <summary class="ups-config-heading"><span>1</span><div><h3>Połączenie NUPSON z UPS</h3><p class="muted">Wybierz sposób komunikacji i uzupełnij parametry wymagane przez ten profil.</p></div><i class="ti ti-chevron-down collapse-icon" aria-hidden="true"></i></summary>
               <div class="form-grid ups-config-grid">
-                <label class="wide">Profil połączenia<select name="connection_type" required><option value="usb">USB — bezpośrednie połączenie</option><option value="remote_nut">Zdalny serwer NUT</option><option value="snmp">SNMP — karta sieciowa UPS</option></select></label>
+                <label>Profil połączenia<select name="connection_type" required><option value="usb">USB — bezpośrednie połączenie</option><option value="remote_nut">Zdalny serwer NUT</option><option value="snmp">SNMP — karta sieciowa UPS</option></select></label>
 
 
             <div class="connection-fields" data-connection-profile="usb">
               <p class="profile-help wide">UPS jest podłączony bezpośrednio do hosta NUPSON przez USB HID.</p>
               <label>Vendor ID<input name="vendorid" placeholder="np. 051d"></label>
               <label>Product ID<input name="productid" placeholder="np. 0002"></label>
-              <label class="wide">Numer seryjny<input name="serial"></label>
+              <label>Numer seryjny<input name="serial"></label>
             </div>
 
             <div class="connection-fields hidden" data-connection-profile="remote_nut">
               <p class="profile-help wide">NUPSON pobiera ujednolicone dane z istniejącego serwera NUT i udostępnia je lokalnym klientom.</p>
               <label>Host lub adres IP<input name="remote_host" placeholder="np. 192.168.20.10"></label>
               <label>Port NUT<input name="remote_port" type="number" min="1" max="65535" value="3493"></label>
-              <label class="wide">Nazwa UPS na zdalnym serwerze<input name="remote_ups_name" value="ups" maxlength="48" pattern="[A-Za-z0-9_.-]+"></label>
+              <label>Nazwa UPS na zdalnym serwerze<input name="remote_ups_name" value="ups" maxlength="48" pattern="[A-Za-z0-9_.-]+"></label>
             </div>
 
             <div class="connection-fields hidden" data-connection-profile="snmp">
@@ -206,7 +206,7 @@
               <label>Port SNMP<input name="snmp_port" type="number" min="1" max="65535" value="161"></label>
               <label>Wersja SNMP<select name="snmp_version"><option value="v3">SNMPv3</option><option value="v2c">SNMPv2c</option><option value="v1">SNMPv1</option></select></label>
               <label>Profil MIB<select name="mibs"><option value="auto">Automatyczny</option><option value="ietf">IETF UPS-MIB</option><option value="apcc">APC PowerNet</option><option value="eaton_pw_nm2">Eaton Powerware</option><option value="mge">MGE</option><option value="netvision">Socomec Netvision</option></select></label>
-              <label class="wide">Pełny odczyt co (s)<input name="pollfreq" type="number" min="5" max="300" value="15"></label>
+              <label>Pełny odczyt co (s)<input name="pollfreq" type="number" min="5" max="300" value="15"></label>
               <div class="connection-fields wide hidden" data-snmp-fields="community">
                 <label class="wide">Community<input name="community" type="password" autocomplete="new-password" placeholder="Pozostaw puste, aby zachować obecne"></label>
               </div>
@@ -224,24 +224,26 @@
               </div>
             </div>
 
-                <label class="wide">Opis urządzenia<input name="desc" maxlength="160" placeholder="UPS w szafie serwerowej"></label>
+                <label>Opis urządzenia<input name="desc" maxlength="160" placeholder="UPS w szafie serwerowej"></label>
               </div>
-            </section>
+            </details>
 
-            <section class="ups-config-block client-access-block">
-              <div class="ups-config-heading"><span>2</span><div><h3>Dostęp dla klientów NUT</h3><p class="muted">Te dane wpisują klienci upsmon, aby łączyć się z serwerem NUT udostępnianym przez NUPSON.</p></div></div>
+            <details class="ups-config-block client-access-block">
+              <summary class="ups-config-heading"><span>2</span><div><h3>Dostęp dla klientów NUT</h3><p class="muted">Te dane wpisują klienci upsmon, aby łączyć się z serwerem NUT udostępnianym przez NUPSON.</p></div><i class="ti ti-chevron-down collapse-icon" aria-hidden="true"></i></summary>
               <div class="form-grid ups-config-grid">
                 <label>Nazwa UPS dla klientów<input name="name" value="ups" required maxlength="48" pattern="[A-Za-z0-9_.-]+"></label>
                 <label>Nazwa użytkownika klientów NUT<input name="client_username" value="upsmon" maxlength="32" pattern="[A-Za-z0-9_.-]+" required></label>
-                <label class="wide"><span id="client-password-label">Hasło klientów NUT</span><input name="client_password" type="password" minlength="6" autocomplete="new-password" placeholder="Pozostaw puste, aby zachować obecne"></label>
+                <label><span id="client-password-label">Hasło klientów NUT</span><input name="client_password" type="password" minlength="6" autocomplete="new-password" placeholder="Pozostaw puste, aby zachować obecne"></label>
               </div>
-            </section>
+            </details>
 
             <div class="form-actions"><button class="primary" type="submit"><i class="ti ti-settings"></i><span>Zapisz i uruchom NUT</span></button><span id="ups-message"></span></div>
           </form>
-          <div class="subsection-head"><div class="ups-config-heading"><span>3</span><div><h3>Diagnostyka UPS</h3><p class="muted">Dane udostępniane przez firmware urządzenia, pogrupowane według znaczenia.</p></div></div><button id="refresh-raw" class="secondary" type="button"><i class="ti ti-refresh"></i><span>Odśwież</span></button></div>
+          <details class="ups-config-block diagnostics-block">
+            <summary class="ups-config-heading"><span>3</span><div><h3>Diagnostyka UPS</h3><p class="muted">Dane udostępniane przez firmware urządzenia, pogrupowane według znaczenia.</p></div><i class="ti ti-chevron-down collapse-icon" aria-hidden="true"></i></summary><div class="diagnostics-toolbar"><button id="refresh-raw" class="secondary" type="button"><i class="ti ti-refresh"></i><span>Odśwież</span></button></div>
           <div id="battery-health" class="battery-health"></div>
           <div id="raw-vars" class="diagnostic-groups"></div>
+          </details>
         </section>
 
         <form id="automation-form" class="settings-section panel form-grid compact-settings-form hidden" data-settings-panel="automation">
@@ -319,6 +321,6 @@
     </main>
   </div>
   <div id="toast" class="toast hidden"></div>
-  <script src="/app.js?v=20" defer></script>
+  <script src="/app.js?v=24" defer></script>
 </body>
 </html>

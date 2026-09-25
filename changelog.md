@@ -3,6 +3,27 @@
 All notable changes to NUPSON are documented here. Unreleased entries describe
 user-visible or operational effects rather than implementation details.
 
+## 0.1.1
+
+### Improvements
+
+- Made the three UPS and NUT settings groups collapsible, reset them to closed
+  whenever the view is opened, and placed the compact connection and client
+  access panels side by side on desktop.
+- Clarified whether dashboard runtime comes from the standard NUT
+  `battery.runtime` field and when the UPS does not expose that value.
+- Listed Fedora explicitly in the DNF-based NUT client platform option alongside
+  RHEL, Rocky Linux, and AlmaLinux.
+
+### Bug fixes
+
+- Kept the dashboard in the disconnected state while NUT still reports stale
+  UPS data after a USB reconnection, and continued restarting the managed
+  driver until fresh telemetry is available. The communication-restored event
+  is now emitted only after a reliable UPS status is received.
+- Made the dashboard power-state heading consistently show a communication
+  failure when `ups.status` contains `COMMLOST` or `STALE`.
+
 ## 0.1.0
 
 ### New features

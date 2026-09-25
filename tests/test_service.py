@@ -138,6 +138,51 @@ class ServiceTests(unittest.TestCase):
                 service._read_ups()
             self.assertEqual(service.machine.state, PowerState.NORMAL)
 
+    def test_stale_nut_response_does_not_mark_communication_as_restored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            service = NupsonService(
+                AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, True, False),
+                Database(path / "nupson.db"),
+            )
+            service.connection_error = "UPS disconnected"
+            with (
+                patch.object(
+                    service.nut,
+                    "variables",
+                    return_value={"ups.status": "OL COMMLOST", "battery.charge": "90"},
+                ),
+                patch.object(service, "_add_event") as add_event,
+                self.assertRaisesRegex(NutError, "nadal zgłasza brak komunikacji"),
+            ):
+                service._read_ups()
+
+            self.assertEqual(service.connection_error, "UPS disconnected")
+            add_event.assert_not_called()
+
+    def test_valid_nut_response_marks_communication_as_restored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            service = NupsonService(
+                AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, True, False),
+                Database(path / "nupson.db"),
+            )
+            service.connection_error = "UPS disconnected"
+            with (
+                patch.object(
+                    service.nut,
+                    "variables",
+                    return_value={"ups.status": "OL CHRG", "battery.charge": "90"},
+                ),
+                patch.object(service.nut, "clients", return_value=[]),
+                patch.object(service, "_add_event") as add_event,
+            ):
+                values = service._read_ups()
+
+            self.assertEqual(values["ups.status"], "OL CHRG")
+            self.assertIsNone(service.connection_error)
+            add_event.assert_called_once_with("communication", "UPS communication restored")
+
     def test_webhook_secret_is_write_only(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)

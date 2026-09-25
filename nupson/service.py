@@ -49,6 +49,7 @@ OPERATIONAL_TELEMETRY_FIELDS = {
     "ups.load",
     "ups.realpower",
 }
+UNRELIABLE_UPS_STATUSES = {"COMMLOST", "STALE", "UNKNOWN"}
 
 
 def battery_health(values: dict[str, Any]) -> dict[str, Any]:
@@ -370,6 +371,11 @@ class NupsonService:
             return self._demo_values()
         name = self.settings()["ups_name"]
         values = self.nut.variables(name)
+        status = values.get("ups.status", "")
+        status_tokens = set(status.upper().split())
+        if not status or status_tokens & UNRELIABLE_UPS_STATUSES:
+            detail = status or "brak pola ups.status"
+            raise NutError(f"Sterownik UPS nadal zgłasza brak komunikacji: {detail}")
         if self._startup_telemetry_guard:
             if not self._telemetry_complete(values):
                 raise NutError(INCOMPLETE_TELEMETRY_ERROR)
@@ -388,7 +394,8 @@ class NupsonService:
 
     @staticmethod
     def _telemetry_complete(values: dict[str, str]) -> bool:
-        return bool(values.get("ups.status")) and any(
+        status_tokens = set(values.get("ups.status", "").upper().split())
+        return bool(status_tokens) and not status_tokens & UNRELIABLE_UPS_STATUSES and any(
             values.get(key) not in {None, ""} for key in OPERATIONAL_TELEMETRY_FIELDS
         )
 
