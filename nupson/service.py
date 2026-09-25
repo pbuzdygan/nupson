@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
+from .client_config import CLIENT_BUNDLE_SCHEMA
 from .config import AppConfig, public_ups_config
 from .db import Database
 from .nut import NutClient, NutError, NutSupervisor
@@ -49,6 +50,13 @@ OPERATIONAL_TELEMETRY_FIELDS = {
     "ups.load",
     "ups.realpower",
 }
+POWER_TELEMETRY_FIELDS = {
+    "input.voltage",
+    "output.voltage",
+    "ups.load",
+    "ups.realpower",
+}
+TELEMETRY_CAPABILITIES_SETTING = "telemetry_capabilities_v1"
 UNRELIABLE_UPS_STATUSES = {"COMMLOST", "STALE", "UNKNOWN"}
 
 
@@ -147,6 +155,11 @@ class NupsonService:
         self._outage_battery_sample: dict[str, Any] | None = None
         self._startup_notification_pending = True
         self._startup_telemetry_guard = False
+        stored_capabilities = self.database.get_setting(TELEMETRY_CAPABILITIES_SETTING, [])
+        self._expected_telemetry_fields = {
+            str(field) for field in stored_capabilities if field in POWER_TELEMETRY_FIELDS
+        }
+        self._expected_telemetry_fields.update(self.database.telemetry_capabilities())
         self.ups_data: dict[str, Any] = {}
         self.clients: list[str] = []
         self.connection_error: str | None = None
@@ -258,6 +271,9 @@ class NupsonService:
         if not self.database.get_setting("client_config_privilege_v1", False):
             self.database.invalidate_client_configs()
             self.database.set_setting("client_config_privilege_v1", True)
+        if self.database.get_setting("client_bundle_schema", 0) < CLIENT_BUNDLE_SCHEMA:
+            self.database.invalidate_client_configs()
+            self.database.set_setting("client_bundle_schema", CLIENT_BUNDLE_SCHEMA)
 
     def start(self) -> None:
         self.webhook.start()
@@ -356,11 +372,11 @@ class NupsonService:
                     and time.monotonic() - self._last_nut_restart > NUT_RESTART_SECONDS
                 ):
                     self._last_nut_restart = time.monotonic()
+                    self._startup_telemetry_guard = True
                     self.supervisor.restart()
-            if (
-                self.machine.state == PowerState.NORMAL
-                and time.monotonic() - self._last_host_probe > 60
-            ):
+                    if not self.supervisor.startup_error:
+                        self._guard_initial_telemetry()
+            if time.monotonic() - self._last_host_probe > 60:
                 self._probe_hosts()
             self.notify_changed()
             interval = self.settings()["poll_seconds"]
@@ -369,6 +385,8 @@ class NupsonService:
     def _read_ups(self) -> dict[str, str]:
         if self.config.demo:
             return self._demo_values()
+        if self.config.manage_nut and self.supervisor.startup_error:
+            raise NutError(self.supervisor.startup_error)
         name = self.settings()["ups_name"]
         values = self.nut.variables(name)
         status = values.get("ups.status", "")
@@ -377,7 +395,7 @@ class NupsonService:
             detail = status or "brak pola ups.status"
             raise NutError(f"Sterownik UPS nadal zgłasza brak komunikacji: {detail}")
         if self._startup_telemetry_guard:
-            if not self._telemetry_complete(values):
+            if not self._telemetry_complete(values, self._expected_telemetry_fields):
                 raise NutError(INCOMPLETE_TELEMETRY_ERROR)
             self._startup_telemetry_guard = False
         clients: list[str] = []
@@ -393,10 +411,15 @@ class NupsonService:
         return values
 
     @staticmethod
-    def _telemetry_complete(values: dict[str, str]) -> bool:
+    def _telemetry_complete(
+        values: dict[str, str], expected_fields: set[str] | None = None
+    ) -> bool:
         status_tokens = set(values.get("ups.status", "").upper().split())
-        return bool(status_tokens) and not status_tokens & UNRELIABLE_UPS_STATUSES and any(
-            values.get(key) not in {None, ""} for key in OPERATIONAL_TELEMETRY_FIELDS
+        return (
+            bool(status_tokens)
+            and not status_tokens & UNRELIABLE_UPS_STATUSES
+            and any(values.get(key) not in {None, ""} for key in OPERATIONAL_TELEMETRY_FIELDS)
+            and all(values.get(key) not in {None, ""} for key in expected_fields or set())
         )
 
     def _wait_for_initial_telemetry(self, timeout: float) -> dict[str, str]:
@@ -405,7 +428,7 @@ class NupsonService:
         while not self._stop.is_set() and time.monotonic() < deadline:
             try:
                 last_values = self.nut.variables(self.settings()["ups_name"])
-                if self._telemetry_complete(last_values):
+                if self._telemetry_complete(last_values, self._expected_telemetry_fields):
                     return last_values
             except NutError:
                 pass
@@ -414,7 +437,7 @@ class NupsonService:
 
     def _guard_initial_telemetry(self) -> None:
         values = self._wait_for_initial_telemetry(INITIAL_TELEMETRY_TIMEOUT_SECONDS)
-        if self._telemetry_complete(values):
+        if self._telemetry_complete(values, self._expected_telemetry_fields):
             self._startup_telemetry_guard = False
             return
         if not values.get("ups.status"):
@@ -426,10 +449,24 @@ class NupsonService:
         self._last_nut_restart = time.monotonic()
         self.supervisor.restart()
         values = self._wait_for_initial_telemetry(INITIAL_TELEMETRY_TIMEOUT_SECONDS)
-        if self._telemetry_complete(values):
+        if self._telemetry_complete(values, self._expected_telemetry_fields):
             with self._lock:
                 self.connection_error = None
             self._startup_telemetry_guard = False
+            return
+        if self._telemetry_complete(values):
+            missing = sorted(
+                field
+                for field in self._expected_telemetry_fields
+                if values.get(field) in {None, ""}
+            )
+            self._startup_telemetry_guard = False
+            self._add_event(
+                "communication",
+                "UPS po ponownej inicjalizacji udostępnia ograniczoną telemetrię",
+                "warning",
+                {"missing_fields": missing},
+            )
 
     def _demo_values(self) -> dict[str, str]:
         return {
@@ -452,6 +489,14 @@ class NupsonService:
             self.ups_data = values.copy()
             self.last_update = datetime.now(UTC).isoformat(timespec="seconds")
             transition = self.machine.observe(status, charge)
+        available_fields = {
+            field for field in POWER_TELEMETRY_FIELDS if values.get(field) not in {None, ""}
+        }
+        if not available_fields.issubset(self._expected_telemetry_fields):
+            self._expected_telemetry_fields.update(available_fields)
+            self.database.set_setting(
+                TELEMETRY_CAPABILITIES_SETTING, sorted(self._expected_telemetry_fields)
+            )
         if transition:
             self._handle_transition(transition)
         health = battery_health(values)
@@ -698,9 +743,8 @@ class NupsonService:
     def _probe_hosts(self) -> None:
         self._last_host_probe = time.monotonic()
         for host in self.database.hosts():
-            if not host["enabled"] or host["policy"] == "disabled" or not host["address"]:
-                continue
-            online = ping_online(host["address"])
+            monitored = host["enabled"] and host["address"]
+            online = ping_online(host["address"]) if monitored else False
             self.database.set_host_online(int(host["id"]), online)
 
     def manual_wake(self, host_id: int) -> None:

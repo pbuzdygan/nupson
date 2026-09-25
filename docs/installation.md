@@ -181,7 +181,10 @@ backups of `data/`, because NUT must be able to read the runtime credential in
 plain text. `NUPSON_ENC_KEY` is therefore not required or used.
 
 The service uses host networking so Wake-on-LAN broadcasts can reach the
-physical LAN. TCP 3493 is served directly by NUT.
+physical LAN. TCP 3493 is served directly by NUT. Run only one managed NUPSON
+instance per host unless every additional development instance disables managed
+NUT or uses an isolated network and port. Two host-networked instances cannot
+own TCP 3493 at the same time.
 
 ## USB security model (direct USB only)
 

@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from subprocess import CompletedProcess, TimeoutExpired
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from nupson.nut import NutSupervisor, _nut_binary, parse_ups_conf
 
@@ -52,6 +52,26 @@ class NutParserTests(unittest.TestCase):
                 supervisor.start()
             self.assertIn("inny proces lub kontener", supervisor.startup_error or "")
             popen.assert_not_called()
+
+    def test_supervisor_reports_upsd_early_exit_instead_of_using_foreign_server(self):
+        with TemporaryDirectory() as directory:
+            nut_dir = Path(directory)
+            (nut_dir / "ups.conf").write_text("[ups]\n")
+            supervisor = NutSupervisor(nut_dir, True)
+            command = CompletedProcess(["upsdrvctl", "start"], 0, stdout="", stderr="")
+            failed_upsd = Mock()
+            failed_upsd.poll.return_value = 1
+            with (
+                patch("nupson.nut.subprocess.run", return_value=command),
+                patch("nupson.nut.subprocess.Popen", return_value=failed_upsd),
+                patch("nupson.nut._nut_binary", return_value="/usr/sbin/upsd"),
+                patch("nupson.nut.time.sleep"),
+            ):
+                supervisor.start()
+
+            self.assertIn("Port 3493 może być zajęty", supervisor.startup_error or "")
+            self.assertIsNone(supervisor.upsd)
+            self.assertIsNone(supervisor.upsmon)
 
     def test_driver_commands_have_hard_timeouts(self):
         with TemporaryDirectory() as directory:

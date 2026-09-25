@@ -165,12 +165,26 @@ class NutSupervisor:
     def _start_servers(self, environment: dict[str, str]) -> None:
         self.upsd = subprocess.Popen([_nut_binary("upsd"), "-F"], env=environment, text=True)
         time.sleep(0.5)
+        if (exit_code := self.upsd.poll()) is not None:
+            self.upsd = None
+            raise NutError(
+                "Serwer upsd zakończył pracę podczas uruchamiania "
+                f"(kod {exit_code}). Port 3493 może być zajęty przez inną "
+                "instancję NUT lub konfiguracja serwera jest nieprawidłowa."
+            )
         # NUPSON already runs as the unprivileged NUT user. Avoid upsmon's
         # privileged parent/child split so that the process can be stopped
         # reliably during a restart.
         self.upsmon = subprocess.Popen(
             [_nut_binary("upsmon"), "-F", "-p"], env=environment, text=True
         )
+        time.sleep(0.5)
+        if (exit_code := self.upsmon.poll()) is not None:
+            self.upsmon = None
+            raise NutError(
+                "Monitor upsmon zakończył pracę podczas uruchamiania "
+                f"(kod {exit_code}). Sprawdź konto monitorujące i plik upsmon.conf."
+            )
 
     def _stop_servers(self) -> None:
         for process in (self.upsmon, self.upsd):
@@ -214,7 +228,7 @@ class NutSupervisor:
                 return
             try:
                 self._start_servers(environment)
-            except FileNotFoundError as error:
+            except (FileNotFoundError, NutError) as error:
                 self.startup_error = str(error)
                 self.stop()
 
@@ -257,7 +271,7 @@ class NutSupervisor:
             if self.enabled and (self.nut_dir / "ups.conf").exists():
                 try:
                     self._start_servers(self._environment())
-                except FileNotFoundError as error:
+                except (FileNotFoundError, NutError) as error:
                     self.startup_error = str(error)
                     self._stop_servers()
             return result

@@ -19,7 +19,7 @@ nupson = "nupson.app:main"
 packages = ["nupson"]
 
 [tool.setuptools.package-data]
-nupson = ["web/*", "web/icons/*", "web/assets/*"]
+nupson = ["web/*", "web/icons/*", "web/assets/*", "templates/windows/*"]
 
 [tool.ruff]
 line-length = 100

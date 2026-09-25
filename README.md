@@ -12,7 +12,7 @@ shutdown configuration, and ordered Wake-on-LAN recovery after power returns.
 - configures a UPS using direct USB, remote NUT, or SNMP;
 - exposes UPS data to trusted `upsmon` clients on TCP 3493;
 - records power events and historical telemetry in SQLite;
-- generates ready-to-install NUT client configuration bundles;
+- generates ready-to-install Linux and unattended Windows NUT client bundles;
 - confirms that utility power remains continuously available after an outage;
 - waits for a configured battery reserve before waking machines;
 - checks hosts and runs Wake-on-LAN in ordered waves;

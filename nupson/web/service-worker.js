@@ -1,9 +1,9 @@
-const CACHE_NAME = "nupson-shell-v10";
+const CACHE_NAME = "nupson-shell-v11";
 const APP_SHELL = [
   "/",
   "/styles.css?v=7",
-  "/dashboard.css?v=16",
-  "/app.js?v=24",
+  "/dashboard.css?v=17",
+  "/app.js?v=25",
   "/manifest.webmanifest",
   "/assets/favicon.ico",
   "/assets/favicon-16x16.png",
@@ -19,6 +19,13 @@ const APP_SHELL = [
   "/assets/icon-maskable-512.png",
   "/assets/logo-mark.png",
   "/icons/chevron-down.svg",
+  "/icons/check.svg",
+  "/icons/device-desktop.svg",
+  "/icons/device-floppy.svg",
+  "/icons/eye.svg",
+  "/icons/pencil.svg",
+  "/icons/power.svg",
+  "/icons/trash.svg",
   "/assets/login-banner.png",
   "/icons/bolt.svg",
   "/icons/chart-line.svg",

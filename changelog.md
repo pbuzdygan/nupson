@@ -5,11 +5,31 @@ user-visible or operational effects rather than implementation details.
 
 ## 0.1.1
 
+### New features
+
+- Added beta Windows 10/11 and Windows Server client bundles using the official
+  NUT service. Time-based and immediate shutdown policies use cancellable native
+  Windows shutdown scheduling and do not depend on upssched or user logon.
+- Added administrator install, update, diagnostic, and uninstall scripts for
+  Windows clients, with a pinned NUT archive checksum, protected configuration,
+  delayed automatic service startup, and recovery settings.
+- Added a local PowerShell management menu to each Windows bundle for
+  installation, diagnostics, updates, and removal while preserving direct
+  access to the individual scripts.
+
 ### Improvements
 
-- Made the three UPS and NUT settings groups collapsible, reset them to closed
-  whenever the view is opened, and placed the compact connection and client
-  access panels side by side on desktop.
+- Reworked host cards to show current ping reachability and readable Wake-on-LAN
+  policy labels, and continued reachability probes during outages after the wake
+  queue snapshot has been created.
+- Combined UPS connection and NUT client access into one collapsible section,
+  with automatic expansion and clear selection feedback after USB discovery.
+- Moved NUT client preview and editing panels directly below their profile card
+  and added explicit save, discard, or continue-editing choices for unsaved data.
+- Added local Tabler icons to host and client actions.
+- Reset the UPS and NUT expandable sections to closed whenever the view is
+  opened and placed the compact connection and client access panels side by side
+  on desktop.
 - Clarified whether dashboard runtime comes from the standard NUT
   `battery.runtime` field and when the UPS does not expose that value.
 - Listed Fedora explicitly in the DNF-based NUT client platform option alongside
@@ -17,6 +37,26 @@ user-visible or operational effects rather than implementation details.
 
 ### Bug fixes
 
+- Fixed the extended Windows diagnostic marker JSON and suppressed a misleading
+  localized service-not-found message emitted by the successful NUT service
+  unregister operation during updates and removal.
+- Remembered power telemetry previously exposed by the UPS and required it after
+  managed NUT startup or USB recovery. A partially initialized driver is retried
+  before the dashboard accepts missing load, power, and voltage measurements.
+- Discarded expired Windows shutdown markers and markers left by an earlier
+  system boot, so a completed shutdown cannot block the next ONBATT timer after
+  Windows starts again without an interactive user session.
+- Detected an `upsd` or `upsmon` process that exits during startup, including a
+  second host-networked NUPSON instance conflicting on TCP 3493. A managed
+  instance no longer accepts telemetry or client sessions from another NUT
+  server listening on the same host.
+- Prevented the Windows client diagnostic from treating the informational NUT
+  `Init SSL without certificate database` message as a PowerShell failure. The
+  diagnostic now also requires a running `upsmon.exe` and verifies the active
+  session reported by the NUT server, matching the status shown in the UI. The
+  installer likewise rejects a running wrapper service without `upsmon.exe`.
+- Normalized IPv4-mapped IPv6 client addresses before matching them to NUT
+  client profiles.
 - Kept the dashboard in the disconnected state while NUT still reports stale
   UPS data after a USB reconnection, and continued restarting the managed
   driver until fresh telemetry is available. The communication-restored event

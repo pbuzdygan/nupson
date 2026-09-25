@@ -17,7 +17,7 @@ services:
       NUPSON_DEMO: ${NUPSON_DEMO:-false}
       NUPSON_UID: ${NUPSON_UID:-1000}
       NUPSON_GID: ${NUPSON_GID:-1000}
-      NUPSON_USB_GID: ${NUPSON_USB_GID:-}
+      NUPSON_USB_GID: 982
     volumes:
       - ./data:/data
       - /run/udev:/run/udev:ro
