@@ -83,6 +83,15 @@ class DatabaseTests(unittest.TestCase):
         self.assertAlmostEqual(history["summary"]["energy_kwh"], 0.004333, places=5)
         self.assertEqual(len(history["points"]), 3)
 
+    def test_telemetry_capabilities_report_observed_optional_measurements(self):
+        self.db.add_telemetry({"status": "OL", "load_percent": 20, "input_voltage": 230}, 1000)
+        self.db.add_telemetry({"status": "OL", "output_voltage": 231}, 1060)
+
+        self.assertEqual(
+            self.db.telemetry_capabilities(),
+            {"ups.load", "input.voltage", "output.voltage"},
+        )
+
     def test_client_profile_tracks_connection_and_configuration_version(self):
         profile = self.db.save_client_profile(
             {
@@ -107,6 +116,24 @@ class DatabaseTests(unittest.TestCase):
         self.assertFalse(self.db.client_profiles()[0]["config_current"])
         self.db.sync_client_connections([])
         self.assertEqual(self.db.client_profiles()[0]["status"], "disconnected")
+
+    def test_ipv4_mapped_client_address_matches_ipv4_profile(self):
+        self.db.save_client_profile(
+            {
+                "name": "Windows-01",
+                "address": "192.168.68.102",
+                "server_address": "192.168.68.5",
+                "platform": "windows",
+                "policy": "critical",
+                "delay_seconds": 600,
+                "final_delay_seconds": 5,
+            }
+        )
+
+        unknown = self.db.sync_client_connections(["::ffff:192.168.68.102"])
+
+        self.assertEqual(unknown, [])
+        self.assertEqual(self.db.client_profiles()[0]["status"], "connected")
 
 
 if __name__ == "__main__":

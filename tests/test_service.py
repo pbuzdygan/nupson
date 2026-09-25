@@ -119,6 +119,58 @@ class ServiceTests(unittest.TestCase):
             self.assertIsNone(service.connection_error)
             self.assertEqual(service.machine.state, PowerState.NORMAL)
 
+    def test_initial_telemetry_requires_measurements_seen_before_restart(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            database = Database(path / "nupson.db")
+            database.add_telemetry(
+                {
+                    "status": "OL",
+                    "battery_charge": 100,
+                    "load_percent": 20,
+                    "input_voltage": 230,
+                    "output_voltage": 230,
+                },
+                1000,
+            )
+            service = NupsonService(
+                AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, True, False),
+                database,
+            )
+            service._startup_telemetry_guard = True
+            partial = {"ups.status": "OL", "battery.charge": "100"}
+            complete = {
+                **partial,
+                "ups.load": "20",
+                "input.voltage": "230",
+                "output.voltage": "230",
+            }
+            with (
+                patch.object(
+                    service,
+                    "_wait_for_initial_telemetry",
+                    side_effect=[partial, complete],
+                ),
+                patch.object(service.supervisor, "restart") as restart,
+            ):
+                service._guard_initial_telemetry()
+
+            restart.assert_called_once()
+            self.assertFalse(service._startup_telemetry_guard)
+
+    def test_observed_power_fields_are_remembered_for_next_start(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            database = Database(path / "nupson.db")
+            service = NupsonService(
+                AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, False, False),
+                database,
+            )
+
+            service._observe({"ups.status": "OL", "battery.charge": "100", "ups.realpower": "75"})
+
+            self.assertEqual(database.get_setting("telemetry_capabilities_v1"), ["ups.realpower"])
+
     def test_initial_incomplete_ob_is_not_observed_as_an_outage(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
@@ -137,6 +189,113 @@ class ServiceTests(unittest.TestCase):
             ):
                 service._read_ups()
             self.assertEqual(service.machine.state, PowerState.NORMAL)
+
+    def test_managed_nut_startup_error_blocks_foreign_server_telemetry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            service = NupsonService(
+                AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, True, False),
+                Database(path / "nupson.db"),
+            )
+            service.supervisor.startup_error = "Port 3493 jest zajęty"
+            with (
+                patch.object(service.nut, "variables") as variables,
+                self.assertRaisesRegex(NutError, "Port 3493 jest zajęty"),
+            ):
+                service._read_ups()
+
+            variables.assert_not_called()
+
+    def test_stale_nut_response_does_not_mark_communication_as_restored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            service = NupsonService(
+                AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, True, False),
+                Database(path / "nupson.db"),
+            )
+            service.connection_error = "UPS disconnected"
+            with (
+                patch.object(
+                    service.nut,
+                    "variables",
+                    return_value={"ups.status": "OL COMMLOST", "battery.charge": "90"},
+                ),
+                patch.object(service, "_add_event") as add_event,
+                self.assertRaisesRegex(NutError, "nadal zgłasza brak komunikacji"),
+            ):
+                service._read_ups()
+
+            self.assertEqual(service.connection_error, "UPS disconnected")
+            add_event.assert_not_called()
+
+    def test_valid_nut_response_marks_communication_as_restored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            service = NupsonService(
+                AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, True, False),
+                Database(path / "nupson.db"),
+            )
+            service.connection_error = "UPS disconnected"
+            with (
+                patch.object(
+                    service.nut,
+                    "variables",
+                    return_value={"ups.status": "OL CHRG", "battery.charge": "90"},
+                ),
+                patch.object(service.nut, "clients", return_value=[]),
+                patch.object(service, "_add_event") as add_event,
+            ):
+                values = service._read_ups()
+
+            self.assertEqual(values["ups.status"], "OL CHRG")
+            self.assertIsNone(service.connection_error)
+            add_event.assert_called_once_with("communication", "UPS communication restored")
+
+    def test_host_probe_updates_current_reachability_and_clears_unmonitored_hosts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            database = Database(path / "nupson.db")
+            online = database.save_host(
+                {
+                    "name": "online",
+                    "mac": "AA:BB:CC:DD:EE:01",
+                    "address": "192.0.2.10",
+                    "policy": "was_online",
+                }
+            )
+            disabled = database.save_host(
+                {
+                    "name": "disabled",
+                    "mac": "AA:BB:CC:DD:EE:02",
+                    "address": "192.0.2.11",
+                    "policy": "disabled",
+                }
+            )
+            unmonitored = database.save_host(
+                {
+                    "name": "unmonitored",
+                    "mac": "AA:BB:CC:DD:EE:03",
+                    "address": "",
+                    "policy": "disabled",
+                }
+            )
+            database.set_host_online(unmonitored["id"], True)
+            service = NupsonService(
+                AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, False, False),
+                database,
+            )
+
+            with patch("nupson.service.ping_online", return_value=False) as ping:
+                service._probe_hosts()
+
+            hosts = {host["name"]: host for host in database.hosts()}
+            self.assertFalse(hosts["online"]["last_online"])
+            self.assertFalse(hosts["disabled"]["last_online"])
+            self.assertFalse(hosts["unmonitored"]["last_online"])
+            self.assertCountEqual(
+                [call.args[0] for call in ping.call_args_list],
+                [online["address"], disabled["address"]],
+            )
 
     def test_webhook_secret_is_write_only(self):
         with tempfile.TemporaryDirectory() as directory:

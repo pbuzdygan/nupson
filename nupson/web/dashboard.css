@@ -28,6 +28,14 @@
 .ti-download { mask-image: url("/icons/download.svg"); }
 .ti-copy { mask-image: url("/icons/copy.svg"); }
 .ti-server { mask-image: url("/icons/server.svg"); }
+.ti-chevron-down { mask-image: url("/icons/chevron-down.svg"); }
+.ti-check { mask-image: url("/icons/check.svg"); }
+.ti-device-desktop { mask-image: url("/icons/device-desktop.svg"); }
+.ti-device-floppy { mask-image: url("/icons/device-floppy.svg"); }
+.ti-eye { mask-image: url("/icons/eye.svg"); }
+.ti-pencil { mask-image: url("/icons/pencil.svg"); }
+.ti-power { mask-image: url("/icons/power.svg"); }
+.ti-trash { mask-image: url("/icons/trash.svg"); }
 
 .sr-only {
   position: absolute;
@@ -519,6 +527,47 @@ button.is-loading .ti {
   background: var(--surface);
 }
 
+.client-profile-item {
+  display: grid;
+  min-width: 0;
+}
+
+.client-profile-item.active > .client-profile-card {
+  border-color: color-mix(in srgb, var(--green) 55%, var(--line));
+}
+
+.client-inline-slot.has-panel,
+#client-new-profile-slot:has(> .panel:not(.hidden)) {
+  margin: 10px 0 14px;
+}
+
+.client-inline-slot > .panel,
+#client-new-profile-slot > .panel {
+  margin: 0;
+  background: color-mix(in srgb, var(--surface2) 45%, var(--surface));
+}
+
+.unsaved-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--amber);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--amber) 9%, var(--surface2));
+}
+
+.unsaved-warning > span {
+  color: var(--muted);
+}
+
+.unsaved-warning > div {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
 .client-profile-main h3 {
   display: inline-block;
   margin: 0 0 6px 8px;
@@ -535,6 +584,32 @@ button.is-loading .ti {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.host-main h3 {
+  display: inline-block;
+  margin: 0 0 8px 8px;
+}
+
+.host-facts {
+  display: flex;
+  align-items: center;
+  gap: 8px 18px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.host-facts span,
+.host-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.device-card.selected {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green2) 35%, var(--surface));
 }
 
 .status-pill.warning {
@@ -1385,6 +1460,89 @@ nav a {
   margin: 16px 0 0;
 }
 
+summary.ups-config-heading {
+  cursor: pointer;
+  list-style: none;
+}
+
+summary.ups-config-heading::-webkit-details-marker {
+  display: none;
+}
+
+summary.ups-config-heading .collapse-icon {
+  margin-left: auto;
+  color: var(--muted);
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  transition: transform .2s ease;
+}
+
+.ups-config-block[open] > summary.ups-config-heading .collapse-icon {
+  transform: rotate(180deg);
+}
+
+.ups-config-block[open] > summary.ups-config-heading {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ups-config-grid {
+  grid-template-columns: repeat(2, minmax(0, 340px));
+  justify-content: start;
+  gap: 12px;
+  max-width: 704px;
+}
+
+.diagnostics-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 14px 0;
+}
+
+#ups-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.ups-config-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.ups-config-pane {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface2) 55%, var(--surface));
+}
+
+.ups-pane-heading h3 {
+  margin-bottom: 3px;
+}
+
+.ups-pane-heading p {
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.ups-config-pane .ups-config-grid {
+  max-width: none;
+  margin-top: 0;
+}
+
+#ups-form > .ups-config-block {
+  margin-bottom: 0;
+}
+
+#ups-form > .form-actions {
+  grid-column: 1 / -1;
+}
+
 #ups-form > .form-actions {
   padding: 4px 0 18px;
 }
@@ -1431,8 +1589,12 @@ nav a {
   #automation-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
 
+  #ups-form,
+  .ups-config-pair {
+    grid-template-columns: 1fr;
+  }
+}
 @media (max-width: 700px) {
   #automation-form {
     grid-template-columns: 1fr;
@@ -1442,8 +1604,28 @@ nav a {
     padding: 14px;
   }
 
+  .ups-config-grid {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+
+  .ups-config-grid .connection-fields {
+    grid-template-columns: 1fr;
+  }
+
   .subsection-head {
     align-items: flex-start;
+  }
+
+  .unsaved-warning,
+  .unsaved-warning > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .unsaved-warning > div {
+    width: 100%;
+    margin-left: 0;
   }
 }
 

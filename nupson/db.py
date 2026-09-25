@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 import math
 import sqlite3
@@ -14,6 +15,16 @@ from typing import Any
 
 def utcnow() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _normalize_client_address(value: str) -> str:
+    try:
+        address = ipaddress.ip_address(value.strip())
+    except ValueError:
+        return value.strip()
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        return str(address.ipv4_mapped)
+    return str(address)
 
 
 class Database:
@@ -271,6 +282,24 @@ class Database:
                 ),
             )
 
+    def telemetry_capabilities(self) -> set[str]:
+        """Return optional UPS measurements seen in retained telemetry."""
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT MAX(load_percent IS NOT NULL) AS has_load, "
+                "MAX(input_voltage IS NOT NULL) AS has_input_voltage, "
+                "MAX(output_voltage IS NOT NULL) AS has_output_voltage "
+                "FROM telemetry"
+            ).fetchone()
+        if row is None:
+            return set()
+        fields = {
+            "ups.load": row["has_load"],
+            "input.voltage": row["has_input_voltage"],
+            "output.voltage": row["has_output_voltage"],
+        }
+        return {field for field, available in fields.items() if available}
+
     def prune_telemetry(self, days: int) -> int:
         cutoff = int(time.time()) - max(1, min(days, 3650)) * 86400
         with self._lock, self.connect() as db:
@@ -446,7 +475,7 @@ class Database:
             db.execute(query, parameters)
 
     def sync_client_connections(self, addresses: list[str]) -> list[str]:
-        connected = sorted(set(addresses))
+        connected = sorted({_normalize_client_address(address) for address in addresses})
         now = utcnow()
         with self._lock, self.connect() as db:
             if connected:

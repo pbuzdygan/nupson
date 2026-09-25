@@ -21,3 +21,27 @@ jobs:
       - run: python -m compileall -q nupson
       - run: python -m unittest discover -s tests -v
       - run: docker compose config -q
+
+
+  windows-client-scripts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate generated PowerShell templates
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem nupson/templates/windows -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error "$($_.Extent.File): $($_.Message)" }
+            }
+          }
+          if ($failed) { exit 1 }

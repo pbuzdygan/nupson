@@ -9,7 +9,33 @@ permissions:
   packages: write
 
 jobs:
+  validate-windows-client:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Validate generated PowerShell templates
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem nupson/templates/windows -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error "$($_.Extent.File): $($_.Message)" }
+            }
+          }
+          if ($failed) { exit 1 }
+
   publish:
+    needs: validate-windows-client
     runs-on: ubuntu-latest
     steps:
       - id: release

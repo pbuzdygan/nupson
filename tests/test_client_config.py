@@ -1,4 +1,5 @@
 import io
+import json
 import unittest
 import zipfile
 
@@ -78,6 +79,88 @@ class ClientConfigTests(unittest.TestCase):
         files = render_client_files(self.profile, self.settings, "strong-password")
         self.assertNotIn("nupson-nut-shutdown.sudoers", files)
         self.assertNotIn("RUN_AS_USER", files["upsmon.conf"])
+
+    def test_windows_critical_policy_generates_service_installer(self):
+        self.profile["platform"] = "windows"
+        files = render_client_files(self.profile, self.settings, "strong-password")
+        manifest = json.loads(files["nupson-client.json"])
+
+        self.assertEqual(manifest["schema"], 7)
+        self.assertEqual(manifest["platform"], "windows")
+        self.assertEqual(manifest["clientAddress"], "192.168.68.102")
+        self.assertEqual(manifest["policy"], "critical")
+        self.assertEqual(manifest["shutdownBackend"], "windows-native-timer")
+        self.assertIn("nupson-client.ps1", files)
+        menu_script = files["nupson-client.ps1"]
+        self.assertIn('Install" { Invoke-BundleScript', menu_script)
+        self.assertIn('Test" { Invoke-BundleScript', menu_script)
+        self.assertIn('Update" { Invoke-BundleScript', menu_script)
+        self.assertIn('Uninstall" {', menu_script)
+        self.assertIn("Resolve-BundleDirectory", menu_script)
+        self.assertIn("install-nupson-client.ps1", files)
+        self.assertIn('Get-Process -Name "upsmon"', files["install-nupson-client.ps1"])
+        self.assertIn("test-nupson-client.ps1", files)
+        test_script = files["test-nupson-client.ps1"]
+        self.assertIn("Start-Process -FilePath $FilePath", test_script)
+        self.assertIn("-RedirectStandardError $stderrPath", test_script)
+        self.assertIn('@("-c", $target)', test_script)
+        self.assertIn("NUT server sees the upsmon session", test_script)
+        self.assertNotIn("2>&1", test_script)
+        self.assertIn(
+            "Set-Content -LiteralPath $dryRunMarker -Value '{\"dryRun\":true}'", test_script
+        )
+        self.assertNotIn(r'-Value "{\"dryRun\":true}"', test_script)
+        self.assertIn("Unregister-NutService", files["install-nupson-client.ps1"])
+        self.assertIn("Unregister-NutService", files["uninstall-nupson-client.ps1"])
+        self.assertNotIn("upssched.conf", files)
+        self.assertNotIn("nupson-event.ps1", files)
+        self.assertNotIn("NOTIFYCMD", files["upsmon.conf"])
+        self.assertIn("MINSUPPLIES 1", files["upsmon.conf"])
+
+    def test_windows_timer_uses_native_cancellable_shutdown(self):
+        self.profile["platform"] = "windows"
+        self.profile["policy"] = "timer"
+        self.profile["delay_seconds"] = 30
+        files = render_client_files(self.profile, self.settings, "strong-password")
+        manifest = json.loads(files["nupson-client.json"])
+
+        self.assertEqual(manifest["delaySeconds"], 30)
+        self.assertEqual(manifest["policy"], "timer")
+        self.assertIn("nupson-event.ps1", files)
+        self.assertIn("nupson-event.cmd", files)
+        self.assertIn("$ShutdownExe /s /f /t $delay", files["nupson-event.ps1"])
+        self.assertIn("$ShutdownExe /a", files["nupson-event.ps1"])
+        self.assertIn("Test-PendingShutdownMarker", files["nupson-event.ps1"])
+        self.assertIn("bootTimeUtc = Get-BootTimeUtc", files["nupson-event.ps1"])
+        self.assertIn("Removed stale shutdown marker", files["nupson-event.ps1"])
+        self.assertIn("NOTIFYFLAG ONBATT SYSLOG+EXEC", files["upsmon.conf"])
+        self.assertIn("NOTIFYFLAG ONLINE SYSLOG+EXEC", files["upsmon.conf"])
+        self.assertIn("nupson-event.cmd", files["upsmon.conf"])
+        self.assertNotIn("upssched", "\n".join(files.values()).lower())
+
+        archive = zipfile.ZipFile(io.BytesIO(zip_client_files(files)))
+        self.assertIn("nupson-client.ps1", archive.namelist())
+        self.assertIn("install-nupson-client.ps1", archive.namelist())
+        self.assertIn("nupson-client.json", archive.namelist())
+
+    def test_windows_inherited_timer_uses_global_delay(self):
+        self.profile["platform"] = "windows"
+        self.profile["policy"] = "inherit"
+        files = render_client_files(self.profile, self.settings, "strong-password")
+        manifest = json.loads(files["nupson-client.json"])
+
+        self.assertEqual(manifest["policy"], "timer")
+        self.assertEqual(manifest["delaySeconds"], 900)
+        self.assertIn("nupson-event.ps1", files)
+
+    def test_windows_monitor_only_never_installs_event_handler(self):
+        self.profile["platform"] = "windows"
+        self.profile["policy"] = "monitor_only"
+        files = render_client_files(self.profile, self.settings, "strong-password")
+
+        self.assertIn("MINSUPPLIES 0", files["upsmon.conf"])
+        self.assertNotIn("NOTIFYCMD", files["upsmon.conf"])
+        self.assertNotIn("nupson-event.ps1", files)
 
     def test_profile_requires_exact_ip_address(self):
         values = dict(self.profile)

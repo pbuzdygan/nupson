@@ -23,6 +23,85 @@ The examples below use:
 Use a fixed address for NUPSON. If DNS is used, its infrastructure must remain
 available during a power failure.
 
+## Windows client service
+
+Select **Windows 10/11 / Windows Server** in a client profile to generate an
+unattended Windows service bundle. It uses the official NUT 2.8.5 Windows
+runtime in <code>MODE=netclient</code>; no interactive WinNUT session and no
+logged-in user are required.
+
+Extract the generated ZIP, open PowerShell as Administrator in that directory,
+and start the local management menu:
+
+    powershell.exe -ExecutionPolicy Bypass -File .\nupson-client.ps1
+
+The menu provides installation, standard and extended diagnostics, update, and
+uninstall actions. It executes only the scripts included in the same generated
+bundle. The individual scripts remain available for direct use:
+
+    powershell.exe -ExecutionPolicy Bypass -File .\install-nupson-client.ps1
+    powershell.exe -ExecutionPolicy Bypass -File .\test-nupson-client.ps1
+
+The diagnostic distinguishes a one-off read with <code>upsc.exe</code> from an
+active <code>upsmon.exe</code> session. NUPSON marks the profile as connected
+only when the server reports that persistent session through
+<code>LIST CLIENT</code> and its source address matches the client profile.
+A successful UPS status query alone does not confirm shutdown monitoring.
+
+The installer downloads the pinned
+<code>NUT-for-Windows-x86_64-RELEASE-2.8.5-1-fixNSS.7z</code> release, verifies
+its SHA-256 digest, installs the complete runtime, protects the configuration
+ACL, and registers **Network UPS Tools** with delayed automatic startup and
+service recovery. Windows <code>tar.exe</code> is used to unpack the archive;
+if that Windows version cannot read 7-Zip archives, an installed copy of 7-Zip
+is used as a fallback.
+
+Windows policies map to these actions:
+
+- <code>critical</code>: standard <code>upsmon</code> shutdown on
+  <code>LOWBATT</code> or <code>FSD</code>;
+- <code>timer</code>: <code>ONBATT</code> schedules
+  <code>shutdown.exe</code> with the configured delay and <code>ONLINE</code>
+  cancels only the shutdown marked as created by NUPSON;
+- <code>immediate</code>: <code>ONBATT</code> requests shutdown with zero
+  delay;
+- <code>monitor_only</code>: the UPS is monitored with power value zero and no
+  event handler is installed.
+
+The Windows timer intentionally does not use <code>upssched</code>. It is the
+stable NUPSON backend and is recorded as <code>windows-native-timer</code> in
+<code>nupson-client.json</code>. A future NUT upgrade does not change that
+backend automatically.
+
+A critical UPS state may shut down a timer-policy client before its timer
+expires. If communication is lost after the UPS was known to be on battery,
+the pending timer continues instead of assuming that utility power returned.
+The timer marker records the Windows boot time and expiry. A marker left by a
+completed shutdown or an interrupted timer is discarded on the next ONBATT
+event instead of blocking shutdown after Windows starts again.
+
+Run a safe handler check without scheduling a real shutdown:
+
+    powershell.exe -ExecutionPolicy Bypass -File .\test-nupson-client.ps1 -DryRunEvents
+
+NUT and its configuration are installed under
+<code>C:\NUPSON\NUT</code>. The NUPSON policy manifest, event handler, timer
+marker, and local log are stored under
+<code>%ProgramData%\NUPSON\Client</code>. NUT messages are available in
+Windows Event Viewer and timer actions are recorded in
+<code>client-events.log</code>.
+
+To update from a newly generated bundle:
+
+    powershell.exe -ExecutionPolicy Bypass -File .\update-nupson-client.ps1
+
+To uninstall:
+
+    powershell.exe -ExecutionPolicy Bypass -File .\uninstall-nupson-client.ps1
+
+The downloaded configuration contains the NUT client password. Delete the
+extracted ZIP contents after successful installation and protect any backups.
+
 ## 1. Verify network access
 
 The protected server must reach TCP 3493 on NUPSON:
