@@ -37,6 +37,10 @@ DEFAULTS: dict[str, Any] = {
 }
 
 NUT_RESTART_SECONDS = 10
+NUT_RESTART_MAX_SECONDS = 300
+# usbhid-ups marks data stale on a single failed USB read and usually reconnects
+# by itself within seconds. Report and restart only when the failure persists.
+COMMUNICATION_GRACE_SECONDS = 30
 TELEMETRY_INTERVAL_SECONDS = 60
 INITIAL_TELEMETRY_TIMEOUT_SECONDS = 5
 INCOMPLETE_TELEMETRY_ERROR = (
@@ -148,6 +152,11 @@ class NupsonService:
         self._manual_wake_workers: set[int] = set()
         self._last_host_probe = 0.0
         self._last_nut_restart = 0.0
+        self._nut_restart_interval = NUT_RESTART_SECONDS
+        self._communication_failed_since: float | None = None
+        self._communication_failure_reported = False
+        self._communication_first_error: str | None = None
+        self._healthy_nut_generation: int | None = None
         self._last_telemetry_sample = 0.0
         self._last_telemetry_prune = 0.0
         self._outage_reminder_started = 0.0
@@ -356,31 +365,46 @@ class NupsonService:
                 values = self._read_ups()
                 self._observe(values)
             except Exception as error:  # monitoring must survive individual driver errors
-                error_message = self.supervisor.startup_error or str(error)
-                with self._lock:
-                    disconnected = self.connection_error is None
-                    self.connection_error = error_message
-                    self.last_update = datetime.now(UTC).isoformat(timespec="seconds")
-                self._observe({"ups.status": "COMMLOST"})
-                if disconnected:
-                    self._add_event(
-                        "communication", f"UPS communication failed: {error_message}", "warning"
-                    )
-                if (
-                    self.config.manage_nut
-                    and (self.config.nut_dir / "ups.conf").exists()
-                    and time.monotonic() - self._last_nut_restart > NUT_RESTART_SECONDS
-                ):
-                    self._last_nut_restart = time.monotonic()
-                    self._startup_telemetry_guard = True
-                    self.supervisor.restart()
-                    if not self.supervisor.startup_error:
-                        self._guard_initial_telemetry()
+                self._communication_failed(self.supervisor.startup_error or str(error))
             if time.monotonic() - self._last_host_probe > 60:
                 self._probe_hosts()
             self.notify_changed()
             interval = self.settings()["poll_seconds"]
             self._stop.wait(max(0.1, interval - (time.monotonic() - started)))
+
+    def _communication_failed(self, error_message: str) -> None:
+        now = time.monotonic()
+        with self._lock:
+            self.connection_error = error_message
+            self.last_update = datetime.now(UTC).isoformat(timespec="seconds")
+        if self._communication_failed_since is None:
+            self._communication_failed_since = now
+            self._communication_first_error = error_message
+        # The state machine still sees every failed read, so recovery phases are
+        # cancelled immediately; only reporting and driver restarts are delayed.
+        self._observe({"ups.status": "COMMLOST"})
+        if now - self._communication_failed_since < COMMUNICATION_GRACE_SECONDS:
+            return
+        if not self._communication_failure_reported:
+            self._communication_failure_reported = True
+            self._add_event(
+                "communication", f"UPS communication failed: {error_message}", "warning"
+            )
+        if (
+            self.config.manage_nut
+            and (self.config.nut_dir / "ups.conf").exists()
+            and now - self._last_nut_restart >= self._nut_restart_interval
+        ):
+            self._last_nut_restart = now
+            # Back off so that a UPS which is really unplugged does not keep a
+            # small host busy with driver start attempts.
+            self._nut_restart_interval = min(
+                2 * self._nut_restart_interval, NUT_RESTART_MAX_SECONDS
+            )
+            self._startup_telemetry_guard = True
+            self.supervisor.restart()
+            if not self.supervisor.startup_error:
+                self._guard_initial_telemetry()
 
     def _read_ups(self) -> dict[str, str]:
         if self.config.demo:
@@ -402,12 +426,32 @@ class NupsonService:
         with suppress(NutError):
             clients = self.nut.clients(name)
         with self._lock:
-            restored = self.connection_error is not None
             self.clients = clients
             self.connection_error = None
+        restored = self._communication_failure_reported
+        interrupted_since = self._communication_failed_since
+        # Gaps caused by NUPSON's own start, reconfiguration or FSD clearing are
+        # expected and are not logged as interruptions.
+        unexpected = self._healthy_nut_generation == self.supervisor.generation
+        self._healthy_nut_generation = self.supervisor.generation
+        first_error = self._communication_first_error
+        self._communication_failed_since = None
+        self._communication_failure_reported = False
+        self._communication_first_error = None
+        self._nut_restart_interval = NUT_RESTART_SECONDS
         self.database.sync_client_connections(clients)
         if restored:
             self._add_event("communication", "UPS communication restored")
+        elif interrupted_since is not None and unexpected:
+            # Keep a diagnostic trace of short interruptions (e.g. a UPS which
+            # periodically re-enumerates on USB) without alerting webhooks.
+            duration = max(1, round(time.monotonic() - interrupted_since))
+            self._add_event(
+                "communication",
+                f"Brief UPS communication interruption ({duration} s): {first_error}",
+                data={"duration_seconds": duration, "error": first_error},
+                notify=False,
+            )
         return values
 
     @staticmethod

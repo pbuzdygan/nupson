@@ -5,54 +5,79 @@ import hashlib
 import hmac
 import os
 import secrets
+import threading
 import time
 
 from .db import Database
 
-SCRYPT_COST = 2**17
+# OWASP-equivalent scrypt profile (N=2^15, r=8, p=3) needs 32 MiB per hash.
+# The former N=2^17, p=1 profile needed 128 MiB, which pushed 512 MB hosts
+# such as the Raspberry Pi Zero 2 W into swap during account setup.
+SCRYPT_COST = 2**15
+SCRYPT_BLOCK_SIZE = 8
+SCRYPT_PARALLELISM = 3
 SCRYPT_MAX_MEMORY = 256 * 1024 * 1024
+LEGACY_SCRYPT_BLOCK_SIZE = 8
+LEGACY_SCRYPT_PARALLELISM = 1
+
+# Every request runs in its own thread. Serialise key derivation so that
+# concurrent login attempts cannot multiply memory use.
+_kdf_lock = threading.Lock()
+
+
+def _scrypt(password: str, salt: bytes, n: int, r: int, p: int) -> bytes:
+    with _kdf_lock:
+        return hashlib.scrypt(
+            password.encode(), salt=salt, n=n, r=r, p=p, dklen=32, maxmem=SCRYPT_MAX_MEMORY
+        )
+
+
+def _decode(encoded: str) -> tuple[int, int, int, bytes, bytes]:
+    parts = encoded.split("$")
+    if parts[0] != "scrypt":
+        raise ValueError("Unsupported password hash")
+    if len(parts) == 4:
+        _, cost, salt_text, digest_text = parts
+        r, p = LEGACY_SCRYPT_BLOCK_SIZE, LEGACY_SCRYPT_PARALLELISM
+    elif len(parts) == 6:
+        _, cost, r_text, p_text, salt_text, digest_text = parts
+        r, p = int(r_text), int(p_text)
+    else:
+        raise ValueError("Malformed password hash")
+    return int(cost), r, p, base64.b64decode(salt_text), base64.b64decode(digest_text)
 
 
 def hash_password(password: str) -> str:
     if len(password) < 10:
         raise ValueError("Password must contain at least 10 characters")
     salt = os.urandom(16)
-    digest = hashlib.scrypt(
-        password.encode(),
-        salt=salt,
-        n=SCRYPT_COST,
-        r=8,
-        p=1,
-        dklen=32,
-        maxmem=SCRYPT_MAX_MEMORY,
-    )
-    return (
-        f"scrypt${SCRYPT_COST}$"
-        + base64.b64encode(salt).decode()
-        + "$"
-        + base64.b64encode(digest).decode()
+    digest = _scrypt(password, salt, SCRYPT_COST, SCRYPT_BLOCK_SIZE, SCRYPT_PARALLELISM)
+    return "$".join(
+        (
+            "scrypt",
+            str(SCRYPT_COST),
+            str(SCRYPT_BLOCK_SIZE),
+            str(SCRYPT_PARALLELISM),
+            base64.b64encode(salt).decode(),
+            base64.b64encode(digest).decode(),
+        )
     )
 
 
 def verify_password(password: str, encoded: str) -> bool:
     try:
-        algorithm, cost, salt_text, digest_text = encoded.split("$", 3)
-        if algorithm != "scrypt":
-            return False
-        salt = base64.b64decode(salt_text)
-        expected = base64.b64decode(digest_text)
-        actual = hashlib.scrypt(
-            password.encode(),
-            salt=salt,
-            n=int(cost),
-            r=8,
-            p=1,
-            dklen=32,
-            maxmem=SCRYPT_MAX_MEMORY,
-        )
-        return hmac.compare_digest(actual, expected)
+        n, r, p, salt, expected = _decode(encoded)
+        return hmac.compare_digest(_scrypt(password, salt, n, r, p), expected)
     except (ValueError, TypeError):
         return False
+
+
+def needs_rehash(encoded: str) -> bool:
+    try:
+        n, r, p, _salt, _digest = _decode(encoded)
+    except (ValueError, TypeError):
+        return True
+    return (n, r, p) != (SCRYPT_COST, SCRYPT_BLOCK_SIZE, SCRYPT_PARALLELISM)
 
 
 class AuthManager:
@@ -77,6 +102,8 @@ class AuthManager:
         encoded = self.database.password_hash(username)
         if not encoded or not verify_password(password, encoded):
             return None
+        if needs_rehash(encoded):
+            self.database.upgrade_password_hash(username, hash_password(password))
         return self.create_session(username)
 
     def create_session(self, username: str) -> str:

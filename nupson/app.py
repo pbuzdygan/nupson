@@ -5,6 +5,7 @@ import mimetypes
 import re
 import signal
 import sqlite3
+import sys
 import threading
 import time
 from http import HTTPStatus
@@ -40,6 +41,16 @@ class Application:
         self.database = Database(config.database_path)
         self.auth = AuthManager(self.database)
         self.service = NupsonService(config, self.database)
+
+
+class Server(ThreadingHTTPServer):
+    def handle_error(self, request: object, client_address: tuple[str, int]) -> None:
+        # A client which gave up waiting (browser timeout, Docker healthcheck on
+        # an overloaded host) is not an application error; skip the traceback.
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            print(f"{client_address[0]} - client closed the connection before the response")
+            return
+        super().handle_error(request, client_address)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -534,7 +545,7 @@ def main() -> None:
     config = AppConfig.from_env()
     app = Application(config)
     Handler.app = app
-    server = ThreadingHTTPServer((config.http_host, config.http_port), Handler)
+    server = Server((config.http_host, config.http_port), Handler)
     stop_once = threading.Event()
 
     def shutdown(_signum: int, _frame: object) -> None:

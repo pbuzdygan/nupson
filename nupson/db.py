@@ -238,6 +238,14 @@ class Database:
                 raise KeyError("User not found")
             db.execute("DELETE FROM sessions WHERE username=?", (username,))
 
+    def upgrade_password_hash(self, username: str, password_hash: str) -> None:
+        """Replace the hash of an unchanged password; sessions remain valid."""
+        with self._lock, self.connect() as db:
+            db.execute(
+                "UPDATE users SET password_hash=? WHERE username=?",
+                (password_hash, username),
+            )
+
     def add_event(self, kind: str, message: str, level: str = "info", data: Any = None) -> int:
         with self._lock, self.connect() as db:
             cursor = db.execute(

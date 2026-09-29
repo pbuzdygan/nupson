@@ -236,6 +236,7 @@ class ServiceTests(unittest.TestCase):
                 Database(path / "nupson.db"),
             )
             service.connection_error = "UPS disconnected"
+            service._communication_failure_reported = True
             with (
                 patch.object(
                     service.nut,
@@ -250,6 +251,79 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(values["ups.status"], "OL CHRG")
             self.assertIsNone(service.connection_error)
             add_event.assert_called_once_with("communication", "UPS communication restored")
+
+    def _usb_service(self, path):
+        service = NupsonService(
+            AppConfig(path, "127.0.0.1", 8080, "127.0.0.1", 3493, True, False),
+            Database(path / "nupson.db"),
+        )
+        (path / "nut").mkdir(exist_ok=True)
+        (path / "nut" / "ups.conf").write_text("[ups]\n", encoding="ascii")
+        service._startup_notification_pending = False
+        service._healthy_nut_generation = service.supervisor.generation
+        return service
+
+    def test_transient_communication_failure_is_neither_reported_nor_restarted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = self._usb_service(Path(directory))
+            clock = [100.0]
+            with (
+                patch("nupson.service.time.monotonic", lambda: clock[0]),
+                patch.object(service.supervisor, "restart") as restart,
+                patch.object(service, "_add_event") as add_event,
+            ):
+                service._communication_failed("DATA-STALE")
+                clock[0] = 110.0
+                service._communication_failed("DATA-STALE")
+                with (
+                    patch.object(service.nut, "variables", return_value={"ups.status": "OL"}),
+                    patch.object(service.nut, "clients", return_value=[]),
+                ):
+                    service._read_ups()
+
+            restart.assert_not_called()
+            add_event.assert_called_once_with(
+                "communication",
+                "Brief UPS communication interruption (10 s): DATA-STALE",
+                data={"duration_seconds": 10, "error": "DATA-STALE"},
+                notify=False,
+            )
+            self.assertIsNone(service.connection_error)
+            self.assertIsNone(service._communication_failed_since)
+
+    def test_interruption_after_nut_restart_by_nupson_is_not_logged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = self._usb_service(Path(directory))
+            service._communication_failed("DATA-STALE")
+            service.supervisor.generation += 1
+            with (
+                patch.object(service.nut, "variables", return_value={"ups.status": "OL"}),
+                patch.object(service.nut, "clients", return_value=[]),
+                patch.object(service, "_add_event") as add_event,
+            ):
+                service._read_ups()
+
+            add_event.assert_not_called()
+
+    def test_persistent_communication_failure_is_reported_once_and_restarts_with_backoff(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = self._usb_service(Path(directory))
+            service.supervisor.startup_error = "driver failed"
+            clock = [0.0]
+            with (
+                patch("nupson.service.time.monotonic", lambda: clock[0]),
+                patch.object(service.supervisor, "restart") as restart,
+                patch.object(service, "_add_event") as add_event,
+            ):
+                for clock[0] in (1000.0, 1030.0, 1045.0, 1051.0):
+                    service._communication_failed("DATA-STALE")
+
+            add_event.assert_called_once_with(
+                "communication", "UPS communication failed: DATA-STALE", "warning"
+            )
+            # Restarts at 1030 and, after the doubled 20 s interval, at 1051.
+            self.assertEqual(restart.call_count, 2)
+            self.assertEqual(service._nut_restart_interval, 40)
 
     def test_host_probe_updates_current_reachability_and_clears_unmonitored_hosts(self):
         with tempfile.TemporaryDirectory() as directory:
