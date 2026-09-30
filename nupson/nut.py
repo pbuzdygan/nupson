@@ -157,12 +157,16 @@ class NutSupervisor:
         self.upsd: subprocess.Popen[str] | None = None
         self.upsmon: subprocess.Popen[str] | None = None
         self.startup_error: str | None = None
+        # Incremented whenever NUPSON (re)starts NUT processes, so the monitor
+        # can tell self-inflicted gaps from interruptions on the UPS side.
+        self.generation = 0
         self._process_lock = threading.RLock()
 
     def _environment(self) -> dict[str, str]:
         return {**__import__("os").environ, "NUT_CONFPATH": str(self.nut_dir)}
 
     def _start_servers(self, environment: dict[str, str]) -> None:
+        self.generation += 1
         self.upsd = subprocess.Popen([_nut_binary("upsd"), "-F"], env=environment, text=True)
         time.sleep(0.5)
         if (exit_code := self.upsd.poll()) is not None:
@@ -202,6 +206,7 @@ class NutSupervisor:
             self.startup_error = None
             if not self.enabled or not (self.nut_dir / "ups.conf").exists():
                 return
+            self.generation += 1
             environment = self._environment()
             try:
                 result = subprocess.run(

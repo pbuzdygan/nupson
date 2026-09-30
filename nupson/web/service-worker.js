@@ -1,9 +1,9 @@
-const CACHE_NAME = "nupson-shell-v11";
+const CACHE_NAME = "nupson-shell-v12";
 const APP_SHELL = [
   "/",
   "/styles.css?v=7",
   "/dashboard.css?v=17",
-  "/app.js?v=25",
+  "/app.js?v=26",
   "/manifest.webmanifest",
   "/assets/favicon.ico",
   "/assets/favicon-16x16.png",

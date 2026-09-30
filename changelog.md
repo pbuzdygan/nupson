@@ -3,6 +3,30 @@
 All notable changes to NUPSON are documented here. Unreleased entries describe
 user-visible or operational effects rather than implementation details.
 
+## 0.1.2
+
+### Bug fixes
+
+- Reduced password hashing memory from 128 MiB to 32 MiB per operation and
+  limited it to one operation at a time. Creating the administrator account or
+  logging in no longer freezes 512 MB hosts such as the Raspberry Pi Zero 2 W.
+  Existing password hashes are upgraded automatically at the next login.
+- If the browser stops waiting before account setup finishes, the setup screen
+  now switches to the login form once the account exists instead of only
+  reporting a timeout.
+- Clients that disconnect before a response is sent, such as a timed-out
+  healthcheck, now produce one log line instead of a traceback.
+- Brief UPS communication interruptions, such as a single `DATA-STALE` report
+  from the USB driver or a driver that is still starting, no longer create
+  events, send webhooks, or restart NUT. A failure is reported and NUT is
+  restarted only after it lasts 30 seconds. Restart attempts are then spaced
+  progressively further apart, up to 5 minutes, while the UPS stays
+  unreachable. Recovery phases are still cancelled immediately on any failed
+  read. Short interruptions are recorded in the event history as informational
+  entries with their duration and cause, without sending webhooks, which helps
+  diagnose a UPS that periodically drops off USB. Expected gaps after NUPSON
+  starts or reconfigures NUT are not recorded.
+
 ## 0.1.1
 
 ### New features
