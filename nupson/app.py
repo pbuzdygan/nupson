@@ -309,7 +309,8 @@ class Handler(BaseHTTPRequestHandler):
                     else:
                         readiness_error = (
                             "UPS USB nie odpowiedział w wyznaczonym czasie. Sprawdź "
-                            "podłączenie, mapowanie urządzenia i uprawnienia USB."
+                            "podłączenie, mapowanie urządzenia i uprawnienia USB oraz "
+                            "czy UPS nie jest używany przez inną usługę lub kontener NUT."
                         )
                 level = "info" if ready else "warning"
                 message = f"UPS {ups['name']} configured" + (
